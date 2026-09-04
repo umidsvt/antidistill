@@ -16,6 +16,18 @@ finetuning_type: full
 deepspeed: configs/deepspeed/ds_z3_config.json
 flash_attn: fa2
 
+# DEVIATION (antidistill) — required to fit on 46GB L40S; not in the LIMO default.
+# Without it ZeRO-3 OOMs at step 2: 38.2GB steady + a 9.28GB allocation for the fp32
+# cross-entropy upcast over Qwen's 152k vocab at seq 16384 = 47.5GB vs 44.4GB capacity.
+# (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True was tried first and cut fragmentation
+# from 7-10GB to ~200MB, but the shortfall is real, not fragmentation.)
+# Liger's fused linear cross-entropy never materialises the [seq, vocab] logits tensor,
+# removing that allocation outright. It is a fused kernel computing the same loss, so the
+# deviation is numerical-precision-level only — and it speeds training up rather than
+# slowing it, unlike optimizer offload. liger-kernel==0.5.10 (>=0.6 requires transformers
+# >=4.52, which LLaMA-Factory 0.9.2 forbids).
+enable_liger_kernel: true
+
 ### dataset
 dataset: limo_hindsight_ds32b
 dataset_dir: data

@@ -49,6 +49,9 @@ def parse_args():
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--dtype", default='auto', type=str)
     parser.add_argument("--completions_save_dir", default='./completions', type=str)
+    # DEVIATION (antidistill): see the LLM() construction below.
+    parser.add_argument("--gpu_memory_utilization", default=0.96, type=float)
+    parser.add_argument("--max_num_seqs", default=None, type=int)
     # parser.add_argument("--use_qwen_check", action="store_true")
     args = parser.parse_args()
     
@@ -150,11 +153,17 @@ def infer(args):
         prompt_batch.append(cur_prompt)
     print(prompt_batch[0])
     
-    llm = LLM(model=model_name_or_path, 
-              tensor_parallel_size=len(available_gpus), 
+    # DEVIATION (antidistill): gpu_memory_utilization / max_num_seqs made configurable.
+    # Upstream hardcodes 0.96, which OOMs on 46GB L40S under vLLM 0.11's V1 engine: after
+    # allocating a 2.8M-token KV cache it warms up the sampler with 256 dummy requests and
+    # has ~295MB left. Default stays 0.96 to match upstream; our wrapper passes 0.90.
+    # Memory sizing does not change greedy outputs.
+    llm = LLM(model=model_name_or_path,
+              tensor_parallel_size=len(available_gpus),
               trust_remote_code=True,
             #   swap_space=60,
-              gpu_memory_utilization=0.96,
+              gpu_memory_utilization=args.gpu_memory_utilization,
+              **({"max_num_seqs": args.max_num_seqs} if args.max_num_seqs else {}),
               )
     
     file_outputs = []

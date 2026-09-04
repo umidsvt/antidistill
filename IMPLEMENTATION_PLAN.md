@@ -1,6 +1,9 @@
 # Implementation Plan — Adaptive Attacks on Reasoning Distillation Defenses
 
-**Status:** Phase 0 (scaffolding complete, nothing trained yet)
+**Status:** M2 complete and replicated (2026-09-04) — LIMO effect confirmed at +13.0 pp over 600 problems. Next: M3 hindsight.
+
+> **All deviations from the published setup are recorded in `results/deviations.md`** — two host workarounds, two memory workarounds, none changing the recipe. The one that touches computation (Liger fused cross-entropy) is empirically validated against a non-Liger run.
+
 ---
 
 ## 1. Objective
@@ -168,6 +171,17 @@ Fix `tensor_parallel_size` at 4 for every eval so results stay comparable (greed
 
 **Gate:** 4/30. If we get 3/30 or 5/30, diff our per-problem `is_correct` against the reference file — it tells us exactly which problem flipped and whether it is a decoding or a grading difference.
 
+> **Result (2026-09-03): 6/30 = 20.00%**, two problems above the gate. Diagnosed via
+> `scripts/02_diff_vs_reference.py` (full write-up in `results/m1_base.md`): 28/30 per-problem
+> agreement, differing only in our favour (ids 86, 87), no losses; only 4/30 greedy traces are
+> byte-identical to the reference and the mean shared prefix is 36%. The grader was already
+> proven exact on their generations in Task 0.2, so this is **floating-point nondeterminism in
+> greedy decoding across GPU architectures** — they used four B200s, we use four L40S — plus our
+> documented `gpu_memory_utilization` 0.96 → 0.90 change, which alters KV-cache size and hence
+> batch composition. One problem is 3.33 pp, so two argmax tie-breaks move 13.33% to 20.00%.
+> **Consequence for the rest of the study: our own base number is the baseline, not Kim et al.'s.**
+> All conditions are run on identical hardware and settings, so within-study contrasts stay valid.
+
 ### 5.3 Condition B — LIMO (target 26.7% = 8/30)
 
 **Task 1.2** — train:
@@ -304,10 +318,10 @@ Ordered by cost-to-signal ratio, cheapest first.
 | --- | --- |
 | **30-problem metric is extremely noisy.** 1 problem = 3.33 pp. | Report avg@16 alongside every greedy number; judge on effect direction. Consider adding AIME25 + AMC23 (already in `kim_eval/data/`) as secondary benchmarks. |
 | **Hindsight generation is the critical path** (6–16 h, unbounded retry tail). | Start it in parallel with LIMO training. Cap the retry budget; log exhaustions. |
-| **`cutoff_len: 16384` may truncate long LIMO traces.** | Measure the truncation rate in Task 0.3 and report it. Keep the LIMO default for the replication; treat any change as a documented deviation. |
-| **ZeRO-3 over PCIe is slow.** | Benchmark ZeRO-2; switch only if loss curves match, and record it. |
+| **`cutoff_len: 16384` truncates 32% of LIMO traces** — *measured, not hypothetical* (Task 0.3: median 12.2k tokens, p75 17.8k, max 32.9k). A third of the SFT targets lose their tail, including the final `\boxed{}` answer. | Inherited from the LIMO default, which Kim et al. state they used unchanged — so we keep it for the replication and treat any change as a documented deviation. **But this becomes a live confound in Phase 1C:** hindsight traces are confident re-derivations without the wandering, so they will be *shorter* and truncate *less*. Part of any LIMO-vs-hindsight gap could therefore be a truncation artifact rather than an epistemic one. Task 1.6 must report the hindsight truncation rate next to LIMO's 32%, and if they differ materially, add a length-matched control. |
+| **GPU P2P is broken on this host** — CUDA advertises peer access for every pair, but any NCCL collective using it hangs (a 1-element all-reduce times out after 90s). Confirmed independent of the training stack via `scripts/diag_nccl.py`. Root cause is almost certainly ACS/IOMMU on the PCIe bridges. | `NCCL_P2P_DISABLE=1` routes collectives through host shared memory: works, but ~1.5 GB/s bus bw, which makes SFT ~27 s/step (~11.3 h per run) instead of a few seconds. **This is the binding constraint on the whole project's throughput and no software change on our side moves it** — Liger cut memory ~20 GB/GPU and made throughput slightly *worse*. Needs root (BIOS ACS/IOMMU); affects every multi-GPU job on this machine. |
 | **Checkpoint disk: 15 epochs × ~15 GB.** | Keep epochs 5/10/15, prune the rest. 800 GB free is enough but not unlimited. |
-| **Exact numbers may not reproduce.** | The reference generations let us diff *per problem*, separating decoding differences from grading differences. State the acceptance criterion (ordering) up front rather than post-hoc. |
+| **Exact numbers do not reproduce** — *confirmed at M1*: base came in at 6/30 vs the paper's 4/30, from greedy-decoding nondeterminism across GPU architectures (B200 → L40S). Only 4/30 traces are byte-identical to the reference. | Anticipated, and the response was written down before the number was known. The reference generations let us diff *per problem*, which separated decoding from grading (grader already proven exact in Task 0.2). Standing policy: **judge on ordering, use our own base as the baseline, and report avg@16 alongside every greedy number.** Absolute levels are not comparable to the paper; within-study contrasts are. |
 | **`EPISTEMIC_TOKEN_IDS_QWEN` are tokenizer-specific.** | Always re-resolve ids per model; `_kim_analyze_token_distribution.py` already does this correctly and warns on multi-subtoken splits. |
 
 **Open decisions to settle before Phase 3:** the exact student model set (Qwen2.5-7B only, or add Qwen2.5-Math-7B as the negative control? — recommend the latter, it is the sharpest test we have and it is only 7B); and whether the trace pool for curation is LIMO-only or LIMO + open-source rollouts.
@@ -316,9 +330,9 @@ Ordered by cost-to-signal ratio, cheapest first.
 
 ## 10. Milestones
 
-- [ ] **M0 — Environment.** Both venvs build; grader reproduces 4/30 and 8/30 from the reference generations; `limo_v2.json` has 800 rows with a logged truncation rate.
-- [ ] **M1 — Base cell.** Qwen2.5-7B greedy AIME24 = 4/30.
-- [ ] **M2 — LIMO cell.** SFT complete, eval ≈ 8/30. *Pipeline is now validated end to end.*
+- [x] **M0 — Environment.** *Done 2026-09-03.* Both venvs build (`results/environment.md`); grader reproduces 4/30 and 8/30 with **zero** per-problem disagreements (`results/task0.2_grader_validation.md`); `limo_v2.json` has exactly 800 rows, **32% over `cutoff_len`** (`results/task0.3_pool_stats.md`). Dataset registration, `qwen` template and label masking smoke-tested end-to-end through `llamafactory-cli`.
+- [x] **M1 — Base cell.** *Done 2026-09-03.* Greedy AIME24 = **6/30 = 20.00%** (gate was 4/30); avg@16 @ t=0.7 = **7.08%** vs Kim et al.'s single-sample t=0.7 figure of **6.67%** (Table 7) — agreement within 0.4 pp, i.e. under one problem. The greedy gap is metric fragility, not a pipeline defect. See `results/m1_base.md`, `results/diff_vs_reference_base.md`.
+- [x] **M2 — LIMO cell.** *Done 2026-09-04.* SFT complete (1,500 steps, 11:15:59). **Replicates: +13.0 pp pooled over 600 problems** (base 299/600 = 49.8% → LIMO 377/600 = 62.8%), vs Kim et al.'s reported +13.4 pp. MATH500 +14.0 pp (n=500), AMC23 +15.0 pp, AIME25 +6.7 pp, AIME24 +0.0 pp — AIME24 alone cannot resolve the effect (3.33 pp granularity) and suffers worst from difficulty-triggered non-termination. Epistemic verbalization transferred (`wait` 0 → 6,013). Residual 11.4 pp gap to their MATH500 (69.0% vs 80.4%) correlates with our model being ~2x more verbose; unexplained and flagged. See `results/m2_limo.md`.
 - [ ] **M3 — Hindsight cell.** Dataset generated and verified epistemic-poor; SFT complete; eval ≈ 1/30. **G1 done.**
 - [ ] **M4 — Defense API.** `hindsight` refactored behind `Defense`; one additional defense (`part`) implemented and evaluated.
 - [ ] **M5 — Score function.** All four components implemented and independently calibrated; alignment separates Qwen2.5-7B from Qwen2.5-Math-7B.

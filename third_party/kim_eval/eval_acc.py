@@ -50,6 +50,9 @@ def parse_args():
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--dtype", default='auto', type=str)
     parser.add_argument("--completions_save_dir", default='./completions', type=str)
+    # DEVIATION (antidistill): see the LLM() construction below.
+    parser.add_argument("--gpu_memory_utilization", default=0.96, type=float)
+    parser.add_argument("--max_num_seqs", default=None, type=int)
     args = parser.parse_args()
 
     # top_p must be 1 when using greedy decoding
@@ -122,13 +125,17 @@ def infer(args):
 
     model_name = "/".join(args.model_name_or_path.split("/")[-3:])
     out_file_prefix = f'{args.split}_{args.prompt_type}_t{args.temperature}'
-    # Save results to avg_outputs directory
-    out_file = f'avg_outputs/{model_name}/{args.data_name}/{out_file_prefix}_k{args.n_sampling}_s{args.start_idx}_e{args.end_idx}.jsonl'
+    # DEVIATION (antidistill): honour --output_dir.
+    # Upstream hardcodes a relative 'avg_outputs/' here and silently ignores --output_dir
+    # (eval.py, by contrast, respects it). That scatters avg@k results into the harness
+    # directory instead of the caller's output tree. Default preserves upstream behaviour.
+    out_root = args.output_dir if args.output_dir not in (None, "./outputs") else "avg_outputs"
+    out_file = f'{out_root}/{model_name}/{args.data_name}/{out_file_prefix}_k{args.n_sampling}_s{args.start_idx}_e{args.end_idx}.jsonl'
 
     if os.path.exists(out_file):
         print(f"Completely same name file({out_file}) exist, skip generation, save file and check correct")
         return
-    os.makedirs(f'avg_outputs/{model_name}/{args.data_name}', exist_ok=True)
+    os.makedirs(f'{out_root}/{model_name}/{args.data_name}', exist_ok=True)
     os.makedirs(f'{args.completions_save_dir}/{model_name}/{args.data_name}', exist_ok=True)
 
     available_gpus = os.environ['CUDA_VISIBLE_DEVICES'].split(',')
@@ -158,11 +165,15 @@ def infer(args):
         prompt_batch.append(cur_prompt)
     print(prompt_batch[0])
 
+    # DEVIATION (antidistill): gpu_memory_utilization / max_num_seqs made configurable.
+    # Upstream hardcodes 0.96, which OOMs on 46GB L40S under vLLM 0.11's V1 engine during
+    # sampler warm-up. Default stays 0.96 to match upstream; our wrapper passes 0.90.
     llm = LLM(
         model=model_name_or_path,
         tensor_parallel_size=len(available_gpus),
         trust_remote_code=True,
-        gpu_memory_utilization=0.96,
+        gpu_memory_utilization=args.gpu_memory_utilization,
+        **({"max_num_seqs": args.max_num_seqs} if args.max_num_seqs else {}),
     )
 
     # Generate responses across multiple epochs, tracking token lengths
