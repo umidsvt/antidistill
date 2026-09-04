@@ -1,0 +1,42 @@
+# Condition C: Hindsight (no epistemic) — the behavioral defense.
+# Same LIMO hyperparameters, same 800 problems; only the traces differ:
+# LIMO solutions rewritten by DeepSeek-R1-Distill-Qwen-32B into confident,
+# doubt-free derivations (src/antidistill/defenses/hindsight.py).
+#
+# Run from antidistill/:
+#   FORCE_TORCHRUN=1 llamafactory-cli train configs/train/qwen2.5-7b_hindsight.yaml
+
+### model
+model_name_or_path: Qwen/Qwen2.5-7B
+
+### method
+stage: sft
+do_train: true
+finetuning_type: full
+deepspeed: configs/deepspeed/ds_z3_config.json
+flash_attn: fa2
+
+### dataset
+dataset: limo_hindsight_ds32b
+dataset_dir: data
+cutoff_len: 16384
+overwrite_cache: true
+preprocessing_num_workers: 64
+template: qwen
+
+### output
+output_dir: saves/Qwen2.5-7B_hindsight
+logging_steps: 1
+save_strategy: epoch
+plot_loss: true
+overwrite_output_dir: true
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 1
+learning_rate: 5.0e-6
+num_train_epochs: 15
+lr_scheduler_type: cosine
+warmup_ratio: 0.0
+bf16: true
+ddp_timeout: 180000000

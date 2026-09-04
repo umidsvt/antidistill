@@ -1,0 +1,20 @@
+{
+  "limo_v2": {
+    "file_name": "raw/limo_v2.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "limo_hindsight_ds32b": {
+    "file_name": "defended/limo_hindsight_ds32b.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+# Model checkpoints and training artifacts
+saves/
+logs/
+wandb/
+nohup.out
+*.pid
+*_server.log
+
+# Generated datasets (regenerable via scripts/; too large for git)
+data/raw/*.json
+data/defended/*.json
+data/curated/*.json
+
+# Eval artifacts
+outputs/
+third_party/kim_eval/outputs*/
+third_party/kim_eval/completions/
+third_party/kim_eval/.venv/
+
+# Scoring artifacts
+results/scoring/*.json
+results/scoring/*.csv
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv*/
+
+# Large binaries
+*.ckpt
+*.pt
+*.pth
+*.safetensors
