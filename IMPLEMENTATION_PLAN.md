@@ -1,9 +1,6 @@
 # Implementation Plan — Adaptive Attacks on Reasoning Distillation Defenses
 
 **Status:** Phase 0 (scaffolding complete, nothing trained yet)
-**Owner:** umid · **Created:** 2026-09-03
-**Upstream:** Kim et al., *Understanding Reasoning in LLMs through Strategic Information Allocation under Uncertainty* (arXiv:2603.15500), cloned at `../strategic-information-allocation-llm-reasoning`
-
 ---
 
 ## 1. Objective
