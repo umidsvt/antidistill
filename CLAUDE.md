@@ -108,9 +108,15 @@ spin, not compute — real training draws 250-350 W. Diagnose with `scripts/diag
 
 ### Does NOT change
 
-- **The hindsight dataset.** `make_hint_dataset` rewrites the *LIMO traces*, not the student's
-  output — it is model-independent. If `data/defended/limo_hindsight_ds32b.json` exists, **reuse
-  it** and skip §6 entirely (~3 h saved).
+- **The hindsight dataset — it ships with this repo.**
+  [`data/defended/limo_hindsight_ds32b.json`](data/defended/limo_hindsight_ds32b.json) (800 traces,
+  3.8 MB) plus its audit sidecar `.meta.json`. The rewriter transforms the *LIMO traces*, not the
+  student's output, so it is **model-independent**: reuse it for any student and **skip §6
+  entirely** (~2-3 h of 8-GPU time saved).
+  Quality: 796 `good`, 4 `exhausted` (indices 158, 198, 522, 681 — these failed the GOOD/BAD
+  validator 8 times and fell back to a possibly-wrong solution; exclude them via the sidecar if
+  you want a fully clean set). Known artifact: an orphan `</think>` tag in 95% of traces, faithful
+  to Kim et al.'s script — see `results/m3_hindsight.md` §4.
 - `data/raw/limo_v2.json` — the same 800 problems.
 - The eval harness, graders, benchmarks.
 

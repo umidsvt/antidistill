@@ -6,10 +6,15 @@ nohup.out
 *.pid
 *_server.log
 
-# Generated datasets (regenerable via scripts/; too large for git)
+# Generated datasets. Large regenerable pools stay out; the defended datasets are small
+# (~4MB) and cost hours of multi-GPU time to produce, so they ARE committed — and being
+# model-independent they are directly reusable for other student models.
 data/raw/*.json
-data/defended/*.json
 data/curated/*.json
+data/defended/*.json
+!data/defended/limo_hindsight_ds32b.json
+!data/defended/limo_hindsight_ds32b.meta.json
+data/defended/_shard*.json
 
 # Eval artifacts
 outputs/
