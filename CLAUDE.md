@@ -1,20 +1,62 @@
 # CLAUDE.md — running this pipeline with a different student model
 
-Guide for reproducing the Kim et al. replication (proposal §2.2 table) on a **new student model**.
+Guide for reproducing one row of the reasoning-distillation table on a **new student model**.
 We ran it end-to-end with `Qwen/Qwen2.5-7B`; everything below marks what changes and what does not.
-
-Read `IMPLEMENTATION_PLAN.md` for *why* the project is shaped this way, `results/` for what we
-measured, and `results/deviations.md` for every departure from the published setup.
 
 ---
 
-## 0. What you are reproducing
+## Source documents — get these first
 
-Three cells, one student model, AIME24 greedy pass@1:
+This repo assumes three external things. Two are documents you need to read; one is code you need
+to clone. They live one level **above** this repo in our layout:
 
-| Base | LIMO (epistemic) | Hindsight (no epistemic) |
+```
+AntiDistillation/
+├── 2603.15500v2.pdf                                        <- the paper
+├── Research Proposal_ Adaptive Attacks on ... .md           <- the proposal
+├── strategic-information-allocation-llm-reasoning/          <- upstream code (git clone)
+└── antidistill/                                             <- THIS repo
+```
+
+| What | Identifier | Why you need it |
 | --- | --- | --- |
-| no training | SFT on 800 LIMO-v2 traces | SFT on the same 800 traces rewritten confidently |
+| **The paper** | Kim, Luo, Kim, Lee, Li, Yang, *Understanding Reasoning in LLMs through Strategic Information Allocation under Uncertainty*, **arXiv:2603.15500v2**. Local copy `../2603.15500v2.pdf`. | Defines epistemic verbalization, the nine epistemic tokens (§4.2), the training setup (Appendix E) and the judge prompts (Appendix D). Cited throughout as "Kim et al." |
+| **The proposal** | Mustafa Ozdayi, *Research Proposal: Adaptive Attacks on Reasoning Distillation Defenses*, 2026-04-19. Local copy `../Research Proposal_ Adaptive Attacks on Reasoning Distillation Defenses.md`. | Defines the wider project this replication feeds. **"§2.2 table"** below refers to its Section 2.2; **`Score(...)`** refers to its §4.1; the defense taxonomy is its §3; the attacks are its §4. |
+| **Upstream code** | `git clone https://github.com/beanie00/strategic-information-allocation-llm-reasoning` (we pinned commit `77426c3`) | Source of `third_party/kim_eval`, `third_party/LLaMA-Factory`, the `_kim_*` reference scripts, and `reference/kim_example_eval_outputs/`. **Their `.gitignore` has a blanket `*.json`, so it ships no configs and no data** — see §9, item 5. |
+
+### The table being reproduced (proposal §2.2)
+
+AIME24 pass@1, greedy. Our row is the last one.
+
+| Model | Base | LIMO (epistemic) | Hindsight (no epistemic) |
+| --- | --- | --- | --- |
+| Qwen3-14B-Base | 16.7% | 60.0% | 3.3% |
+| DeepSeek-R1-Distill-32B | 80.0% | 73.3% | 23.3% |
+| **Qwen2.5-7B** | **13.3%** | **26.7%** | **3.3%** |
+
+The claim under test: stripping epistemic verbalization from otherwise-correct traces makes them
+much worse for distillation. **Hindsight** = those same traces re-derived confidently by
+DeepSeek-R1-Distill-Qwen-32B (§6).
+
+### Also read, in this repo
+
+- `IMPLEMENTATION_PLAN.md` — why the project is shaped this way, milestones M0–M6.
+- `results/m1_base.md`, `results/m2_limo.md` — what we measured and how we interpreted it.
+- `results/deviations.md` — every departure from the published setup, and whether it can affect
+  results.
+
+---
+
+## 0. What each cell of that table actually is
+
+| cell | what you do | milestone |
+| --- | --- | --- |
+| **Base** | no training — evaluate the stock model | M1 |
+| **LIMO** | full SFT on the 800 `GAIR/LIMO-v2` traces (epistemic-rich: ~265 epistemic tokens per trace) | M2 |
+| **Hindsight** | full SFT on those *same 800 problems*, with the traces re-derived confidently by DeepSeek-R1-Distill-Qwen-32B (~2.4 epistemic tokens per trace) | M3 |
+
+Both SFT runs use identical hyperparameters (LIMO's default config, §5). **Only the traces
+differ** — that is the entire experiment.
 
 **Read this before trusting any single number:** AIME24 is 30 problems, so one problem = 3.33 pp
 and greedy decoding is not reproducible across GPU architectures. We measured a +0.0 pp LIMO
