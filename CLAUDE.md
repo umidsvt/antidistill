@@ -7,22 +7,23 @@ We ran it end-to-end with `Qwen/Qwen2.5-7B`; everything below marks what changes
 
 ## Source documents — get these first
 
-This repo assumes three external things. Two are documents you need to read; one is code you need
-to clone. They live one level **above** this repo in our layout:
+The proposal ships **inside this repo**. The paper and the upstream code do not — fetch those.
+
+| What | Where | Why you need it |
+| --- | --- | --- |
+| **The proposal** | ✅ **in this repo**: [`Research Proposal_ Adaptive Attacks on Reasoning Distillation Defenses.md`](Research%20Proposal_%20Adaptive%20Attacks%20on%20Reasoning%20Distillation%20Defenses.md) — Mustafa Ozdayi, 2026-04-19 | The wider project this replication feeds. **"§2.2 table"** below is its Section 2.2; **`Score(trace, student)`** is its §4.1; the defense taxonomy is its §3; the proposed attacks are its §4. |
+| **The paper** | ❌ fetch: **arXiv:2603.15500v2** — Kim, Luo, Kim, Lee, Li, Yang, *Understanding Reasoning in LLMs through Strategic Information Allocation under Uncertainty*. (On our dev machine: `../2603.15500v2.pdf`.) | The nine epistemic tokens (its §4.2), the training setup (Appendix E), the GPT-5 judge prompts (Appendix D), the released generations we validate against. Cited throughout as "Kim et al." |
+| **Upstream code** | ❌ fetch: `git clone https://github.com/beanie00/strategic-information-allocation-llm-reasoning` (we pinned commit `77426c3`) | Source of `third_party/kim_eval/`, `third_party/LLaMA-Factory/`, the `_kim_*` reference scripts and `reference/kim_example_eval_outputs/` — all of which are **already vendored into this repo**, so you only need the clone if you want to diff against upstream. **Their `.gitignore` has a blanket `*.json`, so it ships no configs and no data** — see §9, item 5. |
+
+In our development layout these sit alongside each other:
 
 ```
 AntiDistillation/
-├── 2603.15500v2.pdf                                        <- the paper
-├── Research Proposal_ Adaptive Attacks on ... .md           <- the proposal
-├── strategic-information-allocation-llm-reasoning/          <- upstream code (git clone)
-└── antidistill/                                             <- THIS repo
+├── 2603.15500v2.pdf                                   <- the paper (not in the repo)
+├── strategic-information-allocation-llm-reasoning/    <- upstream clone (vendored already)
+└── antidistill/                                       <- THIS repo
+    └── Research Proposal_ ... .md                     <- the proposal (in the repo)
 ```
-
-| What | Identifier | Why you need it |
-| --- | --- | --- |
-| **The paper** | Kim, Luo, Kim, Lee, Li, Yang, *Understanding Reasoning in LLMs through Strategic Information Allocation under Uncertainty*, **arXiv:2603.15500v2**. Local copy `../2603.15500v2.pdf`. | Defines epistemic verbalization, the nine epistemic tokens (§4.2), the training setup (Appendix E) and the judge prompts (Appendix D). Cited throughout as "Kim et al." |
-| **The proposal** | Mustafa Ozdayi, *Research Proposal: Adaptive Attacks on Reasoning Distillation Defenses*, 2026-04-19. Local copy `../Research Proposal_ Adaptive Attacks on Reasoning Distillation Defenses.md`. | Defines the wider project this replication feeds. **"§2.2 table"** below refers to its Section 2.2; **`Score(...)`** refers to its §4.1; the defense taxonomy is its §3; the attacks are its §4. |
-| **Upstream code** | `git clone https://github.com/beanie00/strategic-information-allocation-llm-reasoning` (we pinned commit `77426c3`) | Source of `third_party/kim_eval`, `third_party/LLaMA-Factory`, the `_kim_*` reference scripts, and `reference/kim_example_eval_outputs/`. **Their `.gitignore` has a blanket `*.json`, so it ships no configs and no data** — see §9, item 5. |
 
 ### The table being reproduced (proposal §2.2)
 

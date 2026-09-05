@@ -2,7 +2,9 @@
 
 Adaptive attacks on reasoning-distillation defenses.
 
-Start here: **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**.
+**New here / running on another machine? Start with [CLAUDE.md](CLAUDE.md)** — source documents, host profiling, and the full pipeline with a different student model.
+
+Then: **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** for why the project is shaped this way, and [`Research Proposal_ Adaptive Attacks on Reasoning Distillation Defenses.md`](Research%20Proposal_%20Adaptive%20Attacks%20on%20Reasoning%20Distillation%20Defenses.md) for the wider research programme this feeds.
 
 Immediate goal (G1): reproduce the `Qwen2.5-7B` row of the proposal's Section 2.2 table —
 AIME24 pass@1 of **13.3% base / 26.7% LIMO / 3.3% hindsight** (= 4/30, 8/30, 1/30) —
