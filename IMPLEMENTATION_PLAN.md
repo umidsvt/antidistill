@@ -1,8 +1,8 @@
 # Implementation Plan — Adaptive Attacks on Reasoning Distillation Defenses
 
-**Status:** M2 complete and replicated (2026-09-04) — LIMO effect confirmed at +13.0 pp over 600 problems. Next: M3 hindsight.
+**Status:** **G1 complete (2026-09-05)** — all three cells trained and evaluated over 600 problems. LIMO +13.0 pp (paper: +13.4); hindsight collapses to 1/3 of base on AIME24 (paper: 1/4). Full write-up: `results/REPORT.md`. Next: M4 defense API.
 
-> **All deviations from the published setup are recorded in `results/deviations.md`** — two host workarounds, two memory workarounds, none changing the recipe. The one that touches computation (Liger fused cross-entropy) is empirically validated against a non-Liger run.
+> **All deviations from the published setup are recorded in `results/deviations.md`** — 7 in total: three host workarounds, two memory workarounds, one serving-layer swap, one GPU-count change at fixed global batch. **None change the training recipe.** The one that touches computation (Liger fused cross-entropy) is empirically validated against a non-Liger run.
 
 ---
 
@@ -333,7 +333,7 @@ Ordered by cost-to-signal ratio, cheapest first.
 - [x] **M0 — Environment.** *Done 2026-09-03.* Both venvs build (`results/environment.md`); grader reproduces 4/30 and 8/30 with **zero** per-problem disagreements (`results/task0.2_grader_validation.md`); `limo_v2.json` has exactly 800 rows, **32% over `cutoff_len`** (`results/task0.3_pool_stats.md`). Dataset registration, `qwen` template and label masking smoke-tested end-to-end through `llamafactory-cli`.
 - [x] **M1 — Base cell.** *Done 2026-09-03.* Greedy AIME24 = **6/30 = 20.00%** (gate was 4/30); avg@16 @ t=0.7 = **7.08%** vs Kim et al.'s single-sample t=0.7 figure of **6.67%** (Table 7) — agreement within 0.4 pp, i.e. under one problem. The greedy gap is metric fragility, not a pipeline defect. See `results/m1_base.md`, `results/diff_vs_reference_base.md`.
 - [x] **M2 — LIMO cell.** *Done 2026-09-04.* SFT complete (1,500 steps, 11:15:59). **Replicates: +13.0 pp pooled over 600 problems** (base 299/600 = 49.8% → LIMO 377/600 = 62.8%), vs Kim et al.'s reported +13.4 pp. MATH500 +14.0 pp (n=500), AMC23 +15.0 pp, AIME25 +6.7 pp, AIME24 +0.0 pp — AIME24 alone cannot resolve the effect (3.33 pp granularity) and suffers worst from difficulty-triggered non-termination. Epistemic verbalization transferred (`wait` 0 → 6,013). Residual 11.4 pp gap to their MATH500 (69.0% vs 80.4%) correlates with our model being ~2x more verbose; unexplained and flagged. See `results/m2_limo.md`.
-- [ ] **M3 — Hindsight cell.** Dataset generated and verified epistemic-poor; SFT complete; eval ≈ 1/30. **G1 done.**
+- [x] **M3 — Hindsight cell.** *Done 2026-09-05.* Dataset generated (800 traces, 98% epistemic-token removal verified before training) and SFT complete (6:14 on 4 GPUs). **AIME24 6.7% = one third of base** (Kim et al.: 3.3%, one quarter) — collapse reproduces. Below LIMO on **every** benchmark. Not a termination artifact: hindsight answered 30/30 AIME24 vs LIMO's 19/30 and still scored lower (`acc|finished` 6.7% vs 31.6%). **Effect is difficulty-dependent** — +9.2 pp on MATH500, −13.3 pp on AIME24 — so pooled it sits *above* base (56.5% vs 49.8%). **G1 COMPLETE.** See `results/m3_hindsight.md` and `results/REPORT.md`.
 - [ ] **M4 — Defense API.** `hindsight` refactored behind `Defense`; one additional defense (`part`) implemented and evaluated.
 - [ ] **M5 — Score function.** All four components implemented and independently calibrated; alignment separates Qwen2.5-7B from Qwen2.5-Math-7B.
 - [ ] **M6 — First attack.** Loss masking evaluated; curated-SFT beats random-800 at equal budget.

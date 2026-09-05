@@ -45,7 +45,14 @@ overwrite_output_dir: true
 
 ### train
 per_device_train_batch_size: 1
-gradient_accumulation_steps: 1
+# DEVIATION (antidistill) — 4 GPUs instead of M2's 8, with ga=2 to hold the global batch at 8.
+# On this host collectives across the socket boundary run at ~0.8 GB/s vs ~4.7 GB/s within a
+# NUMA node, so GPUs 0-3 train 1.39x FASTER than all 8 (18.8 vs 26.2 s/it measured) and leave
+# half the node free. Gradient accumulation and data parallelism compute the same mean gradient
+# over the same 8 examples; only the floating-point summation order differs, which is far below
+# the GPU nondeterminism already documented in results/m1_base.md.
+# Launch with: GPUS=0,1,2,3 scripts/20_train.sh configs/train/qwen2.5-7b_hindsight.yaml
+gradient_accumulation_steps: 2
 learning_rate: 5.0e-6
 num_train_epochs: 15
 lr_scheduler_type: cosine

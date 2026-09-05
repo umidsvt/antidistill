@@ -2,6 +2,8 @@
 
 Adaptive attacks on reasoning-distillation defenses.
 
+**Results: [results/REPORT.md](results/REPORT.md)** — G1 complete, all three cells over 600 problems.
+
 **New here / running on another machine? Start with [CLAUDE.md](CLAUDE.md)** — source documents, host profiling, and the full pipeline with a different student model.
 
 Then: **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)** for why the project is shaped this way, and [`Research Proposal_ Adaptive Attacks on Reasoning Distillation Defenses.md`](Research%20Proposal_%20Adaptive%20Attacks%20on%20Reasoning%20Distillation%20Defenses.md) for the wider research programme this feeds.

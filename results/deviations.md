@@ -2,7 +2,8 @@
 
 Every departure from the published setup, why it was forced, and whether it can affect results.
 Nothing here is a silent patch — each has a `DEVIATION (antidistill)` comment at the code or
-config site. Two are host workarounds, two are memory workarounds, none change the recipe.
+config site. Three are host workarounds, two are memory workarounds, one is a serving-layer swap,
+and one changes GPU count while holding the global batch fixed. **None change the training recipe.**
 
 ## Summary
 
@@ -13,11 +14,16 @@ config site. Two are host workarounds, two are memory workarounds, none change t
 | 3 | `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` (train) | Allocator fragmentation | No — allocator behaviour only. |
 | 4 | `enable_liger_kernel: true` (train) | 9.28 GB cross-entropy tensor does not fit | Precision-level only. **Empirically verified — see §4.** |
 | 5 | `eval_acc.py` honours `--output_dir` | Upstream hardcodes `avg_outputs/` | No — output path only. |
+| 6 | **M3 only:** 4 GPUs + `gradient_accumulation_steps: 2` (M2 used 8 GPUs + `ga: 1`) | Broken P2P makes 4 GPUs 1.39x faster than 8 on this host (18.8 vs 26.2 s/it) | No — identical global batch of 8; same mean gradient over the same examples, differing only in float summation order. Well below the greedy-decoding nondeterminism already accepted. |
+| 7 | vLLM OpenAI server instead of SGLang for the hindsight teacher | sglang not installed; would contend with vLLM's pins in the same env | No — serving layer only. The generator calls `/v1/completions`, which both implement identically; model, prompt and sampling unchanged. |
 
 Unchanged and verbatim from LIMO's `train_limo.yaml`: `finetuning_type: full`, ZeRO-3,
 `cutoff_len: 16384`, `template: qwen`, `per_device_train_batch_size: 1`,
-`gradient_accumulation_steps: 1`, `learning_rate: 5.0e-6`, `num_train_epochs: 15`,
-`lr_scheduler_type: cosine`, `warmup_ratio: 0.0`, `bf16: true` → **1,500 optimizer steps**.
+`learning_rate: 5.0e-6`, `num_train_epochs: 15`, `lr_scheduler_type: cosine`,
+`warmup_ratio: 0.0`, `bf16: true` → **global batch 8, 1,500 optimizer steps** in every run.
+
+> `gradient_accumulation_steps` is 1 on 8 GPUs (M2) and 2 on 4 GPUs (M3). Both give a global
+> batch of 8 and 1,500 steps; see deviation 6.
 
 ---
 
