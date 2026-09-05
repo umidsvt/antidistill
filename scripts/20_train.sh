@@ -44,21 +44,26 @@ fi
 # must be on PATH — invoking the CLI by absolute path alone is not enough.
 export PATH="$REPO/.venv-train/bin:$PATH"
 
-# HOST WORKAROUND — mandatory on this node.
-# GPU-to-GPU P2P is advertised by CUDA (`can_device_access_peer` is true for every pair) but is
-# non-functional: any NCCL collective using it hangs forever. A bare 1-element all_reduce times
-# out after 90s on all 8 ranks (reproduce with `scripts/diag_nccl.py`). This is the classic
-# symptom of ACS being enabled on the PCIe bridges (or IOMMU translation) — peer DMA is silently
-# black-holed. Fixing it properly needs root (BIOS ACS / IOMMU), so we route collectives through
-# host shared memory instead. Costs bandwidth (~1.5 GB/s bus bw) but works.
-export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-1}"
+# HOST-SPECIFIC settings come from .host_profile, written by scripts/check_host.sh.
+#
+# Nothing about the interconnect is hardcoded here on purpose. The machine this was developed on
+# has GPU P2P advertised but non-functional, and needs NCCL_P2P_DISABLE=1 — but that setting is
+# HARMFUL on a healthy host, where it disables NVLink and forces collectives through host memory.
+# So we measure per host rather than assume. Run `bash scripts/check_host.sh` once per machine.
+if [[ -f "$REPO/.host_profile" ]]; then
+  # shellcheck disable=SC1091
+  source "$REPO/.host_profile"
+else
+  echo "WARNING: no .host_profile — run 'bash scripts/check_host.sh' first." >&2
+  echo "         If training hangs with GPUs at 100% util but low power draw (~90W), that is" >&2
+  echo "         NCCL busy-wait spin, not compute: your host likely needs NCCL_P2P_DISABLE=1." >&2
+fi
 
-# Fragmentation control. The first M2 attempt OOMed at step 2 with 33.5GB allocated, a 9.28GB
-# request failing, and 7-10GB sitting "reserved but unallocated" — i.e. lost to fragmentation.
-# The 9.28GB request is the fp32 cross-entropy upcast over Qwen's 152k vocab at seq len 16384;
-# it is allocated and freed every step, which is exactly the pattern that fragments the caching
-# allocator. expandable_segments lets the allocator grow/shrink segments instead of stranding
-# them. Purely an allocator change — no effect on numerics or results.
+# Fragmentation control (host-independent). The first M2 attempt OOMed at step 2 with 33.5GB
+# allocated, a 9.28GB request failing, and 7-10GB "reserved but unallocated" — lost to
+# fragmentation. That 9.28GB is the fp32 cross-entropy upcast over a large vocabulary at seq
+# 16384, allocated and freed every step, which is exactly what fragments the caching allocator.
+# Purely an allocator change — no effect on numerics or results.
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 START=$(date +%s)

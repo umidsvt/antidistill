@@ -32,3 +32,6 @@ __pycache__/
 *.pt
 *.pth
 *.safetensors
+
+# Host-specific interconnect settings — regenerate per machine with scripts/check_host.sh
+.host_profile
