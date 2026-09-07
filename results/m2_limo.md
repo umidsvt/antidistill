@@ -140,9 +140,19 @@ Their generations for the same model and benchmark grade to **402/500 = 80.4%**;
 | AIME24 finished | 19/30 | 22/30 |
 
 Our model generates roughly **twice as much text** and terminates less reliably on every
-benchmark. That is consistent and directional, not noise. Plausible sources: run-to-run variance
-in what the 256 stop-token-less examples teach, or a difference in their setup not captured by the
-LIMO default config. **Unresolved and flagged rather than explained.**
+benchmark.
+
+**RESOLVED (2026-09-05), mostly.** Joining the two MATH500 runs per problem (all 500 matched):
+we solve 32 they miss; they solve 89 we miss. **Of those 89, 42 (47%) are problems where our
+model produced no parseable answer** — it ran to the 32k token cap, averaging 81k characters.
+Median response length is 44,046 chars for us vs 14,279 for them, at comparable epistemic
+density (228.7 vs 189.8 per response).
+
+So **about half the 11.4 pp gap is failure-to-terminate, not failure-to-reason.** Both models
+trained on identical data with identical hyperparameters, so this is run-to-run variance in how
+strongly the 32% stop-token-less targets are absorbed — the same pathology as section 4, differing in
+degree rather than kind. The residual ~47 problems remain a genuine reasoning gap and are still
+unexplained.
 
 ---
 

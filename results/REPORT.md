@@ -1,10 +1,14 @@
-# Replication report — reasoning distillation and epistemic verbalization
+# Reasoning distillation, epistemic verbalization, and the first attack
 
-**Qwen2.5-7B · completed 2026-09-05 · all three cells trained and evaluated**
+**Qwen2.5-7B · replication 2026-09-05, first attack 2026-09-06 · six training runs**
 
-Reproduces the `Qwen2.5-7B` row of the proposal's §2.2 table, testing Kim et al.
+Part 1 reproduces the `Qwen2.5-7B` row of the proposal's §2.2 table, testing Kim et al.
 (arXiv:2603.15500): that stripping *epistemic verbalization* from otherwise-correct reasoning
-traces makes them much worse for distillation.
+traces makes them much worse for distillation. **Both claims reproduce.**
+
+Part 2 runs the proposal's §4.3 *epistemic supplementation* attack against that defense.
+**It defeats the defense — but only above a threshold, and below it makes the attacker worse
+off than not attacking at all.**
 
 ---
 
@@ -112,16 +116,19 @@ no regeneration. See `CLAUDE.md` §1.
 
 ---
 
-## The three cells
+## All six conditions
 
-| | training | eval | wall-clock |
-| --- | --- | --- | --- |
-| **base** | none | 4 benchmarks | — |
-| **LIMO** | 800 LIMO-v2 traces, 15 epochs | 4 benchmarks | 11:16 (8 GPU) |
-| **Hindsight** | same 800 problems, traces re-derived confidently by DeepSeek-R1-Distill-Qwen-32B | 4 benchmarks | 6:14 (4 GPU) |
+| | training | wall-clock |
+| --- | --- | --- |
+| **base** | none | — |
+| **LIMO** | 800 LIMO-v2 traces, 15 epochs | 11:16 (8 GPU) |
+| **Hindsight** | same 800 problems, traces re-derived confidently by DeepSeek-R1-Distill-Qwen-32B | 6:14 (4 GPU) |
+| **mix50 / mix25 / mix10** | the same 800 problems, with 50 / 25 / 10% of traces taken from LIMO and the rest from hindsight | 7:29 / 7:14 / 6:42 (4 GPU) |
 
-Both SFT runs used LIMO's default config verbatim — full fine-tune, ZeRO-3, `cutoff_len 16384`,
-lr 5e-6, cosine, 15 epochs, **global batch 8, 1,500 steps**. Only the traces differ.
+Every run uses LIMO's default config verbatim — full fine-tune, ZeRO-3, `cutoff_len 16384`,
+lr 5e-6, cosine, 15 epochs, **global batch 8, 1,500 steps**. Every run sees exactly 800 problems.
+**Only the traces differ**, so problem coverage, step count and compute are held fixed across all
+six cells and every contrast in this report is attributable to trace content alone.
 
 ---
 
@@ -203,12 +210,133 @@ occurrences in 30 AIME24 responses; responses containing any epistemic token wen
 
 ---
 
+## Part 2 — the first attack: epistemic supplementation (proposal §4.3)
+
+The defense above works. Does the cheapest possible attack beat it?
+
+**Threat model.** The defender serves hindsight traces. The attacker mixes in epistemic traces
+obtained elsewhere — LIMO is a free public download. No curation, no algorithm change, just
+concatenation. Three mixtures trained, everything else held fixed (800 problems, identical
+hyperparameters, 1,500 steps).
+
+| condition | % problems epistemic | % **tokens** epistemic | pooled (600) | gap recovered* |
+| --- | --- | --- | --- | --- |
+| base | — | — | 49.8% | — |
+| LIMO | 100% | 100% | 62.8% | 100% |
+| **mix50** | 50% | 90.4% | **63.8%** | **116%** |
+| **mix25** | 25% | 74.4% | **60.0%** | 55% |
+| **mix10** | 10% | 51.1% | **52.2%** | **−68%** |
+| hindsight | 0% | 0% | 56.5% | 0% |
+
+\* fraction of the LIMO-minus-hindsight gap recovered.
+
+**Finding 1 — the attack works, and it is trivial.** mix50 reaches 63.8%, statistically
+indistinguishable from pure LIMO (a 6-problem difference in 600) despite half its traces being the
+defender's. Hindsight rewriting does not survive an attacker who has *any* independent source of
+epistemic traces.
+
+**Finding 2 — it is non-monotonic. At 10%, the attack backfires.** mix10 (52.2%) scores **below
+hindsight alone** (56.5%). Adding 80 epistemic traces made the student worse than adding none.
+That is 26 problems out of 600, with an identifiable mechanism.
+
+### The mechanism — every mixture pays a termination tax
+
+To score a point a model must do two independent things: **reason correctly**, and **stop and
+write down an answer**. A model that reasons brilliantly but runs to the 32k token cap scores
+zero. So pass@1 factors exactly:
+
+```
+pass@1  =  (fraction that finished)  ×  (accuracy among those that finished)
+```
+
+Measured separately on MATH500 (n=500), those two factors behave completely differently.
+
+**Factor 1 — reasoning quality is perfectly monotonic in epistemic fraction.** Exactly Kim et
+al.'s thesis, no exceptions:
+
+| `accuracy \| finished` | LIMO | mix50 | mix25 | mix10 | hindsight |
+| --- | --- | --- | --- | --- | --- |
+| | **78.2%** | 73.6% | 68.5% | 64.4% | 64.3% |
+
+Note where mix10 lands: **64.4% against hindsight's 64.3%.** Eighty LIMO traces bought
+*no measurable reasoning improvement at all*.
+
+**Factor 2 — termination is not monotonic, and every mixture is worse than hindsight at it.**
+`cutoff_len: 16384` truncates each training example and cuts off its trailing `<|im_end|>`, so
+the model sees 16k tokens of text that simply never stops. LIMO traces average 11,450 tokens and
+32% exceed the cutoff; hindsight traces average 1,260 and 0.9% do.
+
+The decisive point is that **training is token-level, so this must be counted in tokens, not
+examples.** For mix10: 37 of 800 examples are truncated — 4.6%, apparently negligible — but each
+contributes ~16,300 tokens against the hindsight examples' ~1,260, so they supply **33.0% of all
+trained tokens**. Adding 80 long traces to a short-trace base nearly doubles the token budget
+(1.01 M → 1.83 M) and most of what it adds is the harmful kind.
+
+| | LIMO | mix50 | mix25 | mix10 | hindsight |
+| --- | --- | --- | --- | --- | --- |
+| examples truncated | 32.0% | 15.9% | 7.9% | **4.6%** | 0.9% |
+| **% of trained tokens with no stop signal** | 45.4% | 41.4% | 34.5% | **33.0%** | 11.3% |
+| **finished** /500 | 441 | 484 | 485 | **455** | 499 |
+
+**Putting them together.** Taking hindsight as the reference, the identity
+`Δpass@1 = F_x(A_x − A_h) + A_h(F_x − F_h)` splits each condition's result into a reasoning gain
+and a termination cost (F = finished fraction, A = accuracy given finished):
+
+| MATH500 | finished | vs hind | `acc\|fin` | vs hind | **reasoning gain** | **termination cost** | **net** |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| hindsight | 499/500 | — | 64.3% | — | — | — | 64.2% |
+| **mix10** | 455 | **−44** | 64.4% | **+0.1 pp** | **+0.1 pp** | **−5.7 pp** | **−5.6 pp** |
+| mix25 | 485 | −14 | 68.5% | +4.2 pp | +4.0 pp | −1.8 pp | +2.2 pp |
+| mix50 | 484 | −15 | 73.6% | +9.3 pp | +8.9 pp | −1.9 pp | +7.0 pp |
+| LIMO | 441 | **−58** | 78.2% | +13.9 pp | +12.3 pp | **−7.5 pp** | +4.8 pp |
+
+*(The decomposition is exact — the two components sum to the net for every row.)*
+
+**Every mixture loses finished-problems relative to hindsight; the reasoning gain has to cover
+that loss.** mix50 gives up 15 problems and earns 8.9 pp — an excellent trade. **mix10 gives up
+44 problems and earns 0.1 pp.** That is the entire result: it pays the full termination tax and
+receives nothing for it.
+
+The same arithmetic explains a second oddity in the headline table: **LIMO pays the largest tax
+of all (−7.5 pp, 58 problems), which is why pure LIMO (69.0%) scores *below* mix50 (71.2%) on
+MATH500.** mix50 is the optimum — near-LIMO reasoning with far better termination. An attacker
+mixing 50/50 does not merely match the undefended teacher's data, it **beats** it.
+
+**Why the token/problem distinction is not a technicality.** LIMO traces average 11,450 trained
+tokens against hindsight's 1,260 — a 9x ratio, so **half the problems is ninety percent of the
+tokens**. "50% epistemic data recovers full performance" would be a misleading way to report
+mix50. Both weightings must be stated.
+
+**Consequences for the proposal:**
+
+- §4.3's orthogonality assumption holds *above a threshold* that lies between 10% and 25% of
+  problems (three points do not locate it more precisely). Below it the supplement's side effects
+  dominate and the attacker should not attack.
+- This is an exploitable asymmetry **for the defender**: constraining how much epistemic data an
+  attacker obtains does not merely blunt the attack, it inverts it. Not currently in the §3
+  taxonomy.
+- `epistemic_density` in `Score()` **must not be a simple monotone factor** — a scorer that just
+  up-weights epistemic traces would assemble a mix10-like pool and degrade the student. Its
+  interaction with trace length has to be represented.
+
+**Limitation.** Effect B exists *because* of the `cutoff_len` truncation artifact, which is
+inherited from LIMO's config and present in Kim et al.'s setup too. The clean follow-up is to
+raise `cutoff_len` to 40,960 and re-run the sweep — that takes truncation to **exactly zero** for
+every dataset at only 13% more tokens, leaving the epistemic token fractions within 2 pp
+(`scripts/32_trace_budget.py --cutoff-len 40960`). If the non-monotonicity
+survives, epistemic traces carry an intrinsic cost; if not, it is a recipe artifact. One training
+run per point, though 2.5x the sequence length will need a memory-tuning pass first — the 16k runs
+already needed Liger fused cross-entropy to fit 46 GB. Full write-up:
+`results/m6_supplementation.md`.
+
+---
+
 ## Caveats and open items
 
 | | |
 | --- | --- |
 | **Absolute numbers are not comparable to the paper.** | Greedy decoding differs across GPU architectures (B200 vs L40S). Use our own base row as the baseline; within-study contrasts are valid. |
-| **11.4 pp gap to Kim et al. on MATH500** (69.0% vs their 80.4%). | Unexplained. Correlates with our LIMO model being ~2x more verbose (51k vs 26k mean chars) and terminating less often (88% vs 95%). |
+| **11.4 pp gap to Kim et al. on MATH500** (69.0% vs their 80.4%). | **Roughly half is non-termination, not reasoning.** Per-problem join over all 500: we solve 32 they miss, they solve 89 we miss. **Of those 89, 42 (47%) are ones where our model produced no answer at all**, running to the token cap at ~81k chars. Our LIMO model is ~3x more verbose (median 44k vs 14k chars) at comparable epistemic density (229 vs 190 per response). Both models trained on the same data with the same config, so this is run-to-run variance in how strongly the 32% stop-token-less targets are learned — not a pipeline difference. The residual (~47 problems) is genuine reasoning gap. |
 | **Hindsight data carries an orphan `</think>` tag** in 760/800 traces; LIMO has none. | Faithful to Kim et al.'s script (no post-processing), but an uncontrolled variable in the contrast. The two halves are a paraphrase, not a duplicate (median char similarity 0.28, 99.6% same final answer). |
 | **4/800 hindsight traces failed validation** and fell back to a possibly-wrong solution. | 0.5% — immaterial. Indices recorded in the sidecar. |
 | **avg@16 was not run for LIMO.** | Killed at 0/480 after 33 min (~16x cost, because the model runs to the token cap). The 600-problem sweep supplied the statistical power instead. |
@@ -238,8 +366,13 @@ This replication delivers the substrate:
   conditions (1.46 per 1k words), i.e. it is used non-epistemically in confident prose. The nine
   proxy tokens should not be weighted equally.
 
+- **A working attack and a quantified failure mode for it** (Part 2) — the cheapest attack in the
+  proposal defeats the defense at high epistemic fractions and *inverts* at low ones. Any
+  curation-based attack has to clear that threshold to be worth running.
+
 **Next:** M4 — refactor `hindsight` behind a `Defense` interface and add a second defense (PART-style
-structural), then M5 — the remaining three `Score` components.
+structural), then M5 — the remaining three `Score` components. The `cutoff_len` control run for
+Part 2 is the cheapest outstanding experiment and should go first.
 
 ---
 
@@ -250,6 +383,7 @@ structural), then M5 — the remaining three `Score` components.
 | `results/m1_base.md` | base cell; the greedy-nondeterminism diagnosis |
 | `results/m2_limo.md` | LIMO cell; +13.0 pp; termination pathology; epoch sweep |
 | `results/m3_hindsight.md` | hindsight cell; collapse; difficulty dependence; dataset audit |
+| `results/m6_supplementation.md` | the supplementation attack; dose-response sweep; non-monotonicity |
 | `results/deviations.md` | all 7 deviations and whether each can affect results |
 | `results/eval_table.md` | every metric, recomputed from stored per-problem verdicts |
 | `CLAUDE.md` | how to run all of this with a different student model |

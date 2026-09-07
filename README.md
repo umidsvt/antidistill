@@ -2,7 +2,7 @@
 
 Adaptive attacks on reasoning-distillation defenses.
 
-**Results: [results/REPORT.md](results/REPORT.md)** — G1 complete, all three cells over 600 problems.
+**Results: [results/REPORT.md](results/REPORT.md)** — G1 complete (all three cells over 600 problems) plus the first attack: epistemic supplementation defeats the hindsight defense at 50% epistemic traces, and *backfires* at 10%.
 
 **New here / running on another machine? Start with [CLAUDE.md](CLAUDE.md)** — source documents, host profiling, and the full pipeline with a different student model.
 

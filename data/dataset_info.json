@@ -16,5 +16,32 @@
       "response": "output",
       "system": "system"
     }
+  },
+  "limo_mixed_50": {
+    "file_name": "curated/limo_mixed_50.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "limo_mixed_25": {
+    "file_name": "curated/limo_mixed_25.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "limo_mixed_10": {
+    "file_name": "curated/limo_mixed_10.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
   }
 }
