@@ -47,6 +47,7 @@ CUDA_VISIBLE_DEVICES="$GPUS" VLLM_ATTENTION_BACKEND=FLASH_ATTN \
   --port "$PORT" \
   --host 127.0.0.1 \
   --trust-remote-code \
+  --reasoning-parser deepseek_r1 \
   > "$LOG" 2>&1 &
 
 echo "server pid $! — waiting for readiness ..."

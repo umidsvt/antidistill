@@ -43,5 +43,14 @@
       "response": "output",
       "system": "system"
     }
+  },
+  "limo_hindsight_chat": {
+    "file_name": "defended/limo_hindsight_chat.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
   }
 }

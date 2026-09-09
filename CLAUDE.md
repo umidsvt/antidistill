@@ -196,6 +196,22 @@ and fills the disk around epoch 7. The pruner keeps every Nth checkpoint and str
 `global_step*/` from the ones it keeps (evaluation never needs optimizer state), taking three
 kept checkpoints from ~300 GB to ~43 GB.
 
+> **This is not hypothetical — it happened on 2026-09-08.** The `hindsight_v2` run was launched
+> without the pruner and died at **step 600/1500 (epoch 6)** with
+> `PytorchStreamWriter failed writing file data/9: file write failed`, having consumed ~590 GB in
+> six checkpoints. Cost: ~3 h of 4-GPU time.
+>
+> **A disk-full crash is not resumable, even though it looks like it should be.** HF Trainer writes
+> the big files first, so `model-*.safetensors` and `global_step*/` survive intact while
+> `latest`, `trainer_state.json`, `scheduler.pt` and `rng_state_*.pth` — every file
+> `--resume_from_checkpoint` needs — are the ones being written when the disk fills. The surviving
+> weights are still a valid *model* for evaluation; they are not a valid *training state*.
+> Reconstructing the missing scheduler state by hand is possible but must not be done for a run
+> whose purpose is a controlled comparison: an LR trajectory that differs from an uninterrupted
+> run invalidates the comparison silently. Restart instead.
+>
+> Launch the pruner in the same command as the trainer, never as an afterthought.
+
 **Global batch must stay 8** (LIMO's recipe: 8 GPUs × bs1 × ga1). On 4 GPUs use
 `gradient_accumulation_steps: 2`. Changing GPU count without compensating silently changes the
 hyperparameters.
