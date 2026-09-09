@@ -109,14 +109,19 @@ spin, not compute — real training draws 250-350 W. Diagnose with `scripts/diag
 ### Does NOT change
 
 - **The hindsight dataset — it ships with this repo.**
-  [`data/defended/limo_hindsight_ds32b.json`](data/defended/limo_hindsight_ds32b.json) (800 traces,
-  3.8 MB) plus its audit sidecar `.meta.json`. The rewriter transforms the *LIMO traces*, not the
+  [`data/defended/limo_hindsight_chat.json`](data/defended/limo_hindsight_chat.json) (800 traces,
+  1.5 MB) plus its audit sidecar `.meta.json`. The rewriter transforms the *LIMO traces*, not the
   student's output, so it is **model-independent**: reuse it for any student and **skip §6
-  entirely** (~2-3 h of 8-GPU time saved).
-  Quality: 796 `good`, 4 `exhausted` (indices 158, 198, 522, 681 — these failed the GOOD/BAD
-  validator 8 times and fell back to a possibly-wrong solution; exclude them via the sidecar if
-  you want a fully clean set). Known artifact: an orphan `</think>` tag in 95% of traces, faithful
-  to Kim et al.'s script — see `results/m3_hindsight.md` §4.
+  entirely** (~10 h of 4-GPU time saved).
+  **Use that file (v2), not `limo_hindsight_ds32b.json` (v1).**
+  v1 reproduces Kim et al.'s procedure faithfully, and that procedure is defective: it calls the
+  teacher through the raw completions endpoint, so every trace carries the model's *scratchpad and*
+  its answer — two complete solutions and an unmatched `</think>` that **499/500** of the resulting
+  student's responses reproduce. Retraining on v2 drops the defended student from +6.7 pp over base
+  to **−0.3 pp**, i.e. the corrected defense transfers nothing, and it lands on Kim et al.'s
+  published AIME24 cell exactly (1/30). Both datasets ship; v1 is retained only because the M6a
+  mixtures were built on it. See `results/hindsight_versions.md` and `results/m3b_hindsight_v2.md`.
+  v2 quality: 746 `good`, 34 `unvalidated`, 19 `exhausted`, 1 fallback — all flagged in the sidecar.
 - `data/raw/limo_v2.json` — the same 800 problems.
 - The eval harness, graders, benchmarks.
 

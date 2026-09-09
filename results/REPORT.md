@@ -1,53 +1,69 @@
-# Reasoning distillation, epistemic verbalization, and the first attack
+# Reasoning distillation, epistemic verbalization, and attacks on the defense
 
-**Qwen2.5-7B · replication 2026-09-05, first attack 2026-09-06 · six training runs**
+**Qwen2.5-7B · replication 2026-09-05 · first attack 2026-09-06 · defense pipeline corrected
+2026-09-09 · seven training runs**
 
-Part 1 reproduces the `Qwen2.5-7B` row of the proposal's §2.2 table, testing Kim et al.
+**Part 1** reproduces the `Qwen2.5-7B` row of the proposal's §2.2 table, testing Kim et al.
 (arXiv:2603.15500): that stripping *epistemic verbalization* from otherwise-correct reasoning
 traces makes them much worse for distillation. **Both claims reproduce.**
 
-Part 2 runs the proposal's §4.3 *epistemic supplementation* attack against that defense.
-**It defeats the defense — but only above a threshold, and below it makes the attacker worse
-off than not attacking at all.**
+**Part 2** runs the proposal's §4.3 *epistemic supplementation* attack against that defense.
+**It defeats the defense — but only above a threshold, and below it makes the attacker worse off
+than not attacking at all.**
+
+**Part 3** reports that the defended dataset everything above was built on **was generated
+incorrectly**, what we changed, and what that does to the numbers. Short version: **the corrected
+defense is much stronger** — it transfers nothing at all to the student — and it lands exactly on
+Kim et al.'s published figure. Part 2's conclusions are consequently scoped to the weaker dataset
+until its mixtures are rebuilt.
 
 ---
 
 ## Headline
 
-Greedy pass@1, one student model, identical hardware and settings throughout.
+Greedy pass@1, one student model, identical hardware and settings throughout. `hindsight v2` is
+the corrected defense and is the number to quote; `v1` is retained because Part 2 is built on it.
 
-| benchmark | n | base | LIMO (epistemic) | Hindsight (no epistemic) |
-| --- | --- | --- | --- | --- |
-| MATH500 | 500 | 55.0% | **69.0%** | 64.2% |
-| AMC23 | 40 | 40.0% | **55.0%** | 37.5% |
-| AIME24 | 30 | 20.0% | 20.0% | **6.7%** |
-| AIME25 | 30 | 6.7% | **13.3%** | 3.3% |
-| **POOLED** | **600** | **49.8%** | **62.8%** | **56.5%** |
-| | | | **+13.0 pp** | **+6.7 pp** |
+| benchmark | n | base | LIMO (epistemic) | hindsight **v2** | *hindsight v1* |
+| --- | --- | --- | --- | --- | --- |
+| MATH500 | 500 | 55.0% | **69.0%** | 56.8% | *64.2%* |
+| AMC23 | 40 | 40.0% | **55.0%** | 27.5% | *37.5%* |
+| AIME24 | 30 | 20.0% | 20.0% | **3.3%** | *6.7%* |
+| AIME25 | 30 | 6.7% | **13.3%** | 3.3% | *3.3%* |
+| **POOLED** | **600** | **49.8%** | **62.8%** | **49.5%** | *56.5%* |
+| | | | **+13.0 pp** | **−0.3 pp** | *+6.7 pp* |
 
-*(base 299/600 · LIMO 377/600 · hindsight 339/600)*
+*(base 299/600 · LIMO 377/600 · hindsight v2 297/600 · hindsight v1 339/600)*
 
-**Published values for comparison** — Kim et al. / proposal §2.2, AIME24 greedy pass@1 only,
-which is the only benchmark they report for this model:
+**Published values for comparison** — Kim et al. / proposal §2.2, AIME24 greedy pass@1, the only
+benchmark they report for this model:
 
 | | base | LIMO | Hindsight |
 | --- | --- | --- | --- |
-| Kim et al. | 13.3% | 26.7% (+13.4 pp) | 3.3% (0.25x base) |
-| ours, AIME24 | 20.0% | 20.0% (+0.0 pp) | 6.7% (**0.33x base**) |
-| ours, pooled 600 | 49.8% | 62.8% (**+13.0 pp**) | 56.5% |
-
-Detailed comparison in the next section.
+| Kim et al. | 13.3% | 26.7% (+13.4 pp) | **3.3%** (1/30) |
+| ours, AIME24 | 20.0% | 20.0% (+0.0 pp) | **3.3%** (1/30) |
+| ours, pooled 600 | 49.8% | 62.8% (**+13.0 pp**) | 49.5% |
 
 **Both of the paper's central claims reproduce:**
 
 1. **LIMO helps: +13.0 pp** pooled over 600 problems (Kim et al. report +13.4 pp).
-2. **Hindsight hurts:** below LIMO on *every* benchmark, and on AIME24 it collapses to
-   **6.7% — one third of base** (Kim et al.: 3.3%, one quarter of base).
+2. **Hindsight hurts:** below LIMO on *every* benchmark, and on AIME24 it reaches **3.3% — one
+   sixth of base**, which is *exactly* the cell Kim et al. report.
 
-**One finding they do not report, which changes how the result should be read:** the hindsight
-effect is strongly **difficulty-dependent**. It *helps* on MATH500 (+9.2 pp vs base) and
-*collapses* on AIME24 (−13.3 pp). Pooled, hindsight is **above** base. "Hindsight collapses" and
-"hindsight beats base" are both true of the same checkpoint.
+**The defense does not stop the student finishing. It stops it being right.** On MATH500 the
+hindsight-v2 student produces an answer on **498/500** problems — far more reliably than the
+untrained base model's 415/500 — and is still correct on only 57.0% of those, against base's
+66.3%. Training on defended traces made the student *worse at reasoning than no training at all*,
+while making it better at stopping.
+
+**One thing the paper does not report:** the hindsight effect is strongly **difficulty-dependent**.
+Against base it costs −16.7 pp on AIME24 but only −12.5 pp on AMC23 and **+1.8 pp on MATH500**.
+Easy problems the model can solve directly still benefit from confident procedural form; hard ones,
+which require detecting and reversing your own errors, do not.
+
+> Under the **v1** dataset this was much stronger — hindsight scored *above* base overall
+> (56.5% vs 49.8%), so "hindsight collapses" and "hindsight beats base" were both true of the same
+> checkpoint. That caveat **does not survive the pipeline correction**; see Part 3.
 
 ---
 
@@ -58,21 +74,24 @@ effect is strongly **difficulty-dependent**. It *helps* on MATH500 (+9.2 pp vs b
 | | base | LIMO | Hindsight |
 | --- | --- | --- | --- |
 | **Kim et al. / proposal §2.2** | **13.3%** (4/30) | **26.7%** (8/30) | **3.3%** (1/30) |
-| **ours** | **20.0%** (6/30) | **20.0%** (6/30) | **6.7%** (2/30) |
-| | +2 problems | −2 problems | +1 problem |
+| **ours (v2 defense)** | **20.0%** (6/30) | **20.0%** (6/30) | **3.3%** (1/30) |
+| | +2 problems | −2 problems | **exact match** |
+| *ours (v1 defense)* | — | — | *6.7% (2/30)* |
 
-Every cell differs by **1–2 problems**, i.e. 3.33–6.67 pp — the resolution limit of a 30-problem
+The hindsight cell now matches **exactly**. The base and LIMO cells differ by **1–2 problems**, i.e. 3.33–6.67 pp — the resolution limit of a 30-problem
 greedy benchmark, and the same magnitude as the argmax nondeterminism measured at M1 (only 4/30
 of our greedy traces are byte-identical to their released generations).
 
 **Relative effects, which is what the metric can actually support:**
 
-| | Kim et al. | ours |
-| --- | --- | --- |
-| LIMO vs base | +13.4 pp (2.0x) | +0.0 pp (1.0x) — *see below* |
-| Hindsight vs base | −10.0 pp (0.25x) | −13.3 pp (**0.33x**) |
+| | Kim et al. | ours (v2) | *ours (v1)* |
+| --- | --- | --- | --- |
+| LIMO vs base | +13.4 pp (2.0x) | +0.0 pp (1.0x) — *see below* | — |
+| Hindsight vs base | −10.0 pp (0.25x) | **−16.7 pp (0.17x)** | *−13.3 pp (0.33x)* |
 
-The **hindsight collapse reproduces closely** (0.25x vs 0.33x of base). The **LIMO effect does not
+The **hindsight collapse reproduces**, and the corrected pipeline lands on their exact figure
+(1/30 vs 1/30). If anything v2 collapses slightly *harder* than they report (0.17x vs 0.25x of
+base), though at 30 problems that is a one-problem difference. The **LIMO effect does not
 appear on AIME24 at all** — but it does appear at **+13.0 pp** once measured over 600 problems,
 against their reported +13.4 pp. See "Why AIME24 alone would have produced the wrong conclusion".
 
@@ -97,7 +116,8 @@ The MATH500 row is the one real unexplained gap (−11.4 pp); see Caveats.
 ### What the paper does *not* report, and we measured
 
 - **Hindsight on anything except AIME24.** We ran MATH500, AMC23 and AIME25, which is what
-  revealed the effect is difficulty-dependent (+9.2 pp on MATH500, −13.3 pp on AIME24).
+  revealed the effect is difficulty-dependent (v2: +1.8 pp on MATH500, −12.5 pp on AMC23,
+  −16.7 pp on AIME24).
 - **Base or hindsight on MATH500 / AMC23 / AIME25** for this model.
 - **Answer-production rates.** LIMO-trained models fail to emit any answer on 11/30 AIME24
   problems; their own released generations show 8/30. Not discussed in the paper.
@@ -116,14 +136,15 @@ no regeneration. See `CLAUDE.md` §1.
 
 ---
 
-## All six conditions
+## All seven conditions
 
 | | training | wall-clock |
 | --- | --- | --- |
 | **base** | none | — |
 | **LIMO** | 800 LIMO-v2 traces, 15 epochs | 11:16 (8 GPU) |
-| **Hindsight** | same 800 problems, traces re-derived confidently by DeepSeek-R1-Distill-Qwen-32B | 6:14 (4 GPU) |
-| **mix50 / mix25 / mix10** | the same 800 problems, with 50 / 25 / 10% of traces taken from LIMO and the rest from hindsight | 7:29 / 7:14 / 6:42 (4 GPU) |
+| **hindsight v1** | same 800 problems, defended by Kim et al.'s procedure | 6:14 (4 GPU) |
+| **hindsight v2** | same 800 problems, defended through the **corrected** teacher call (Part 3) | 6:24 (4 GPU) |
+| **mix50 / mix25 / mix10** | the same 800 problems, with 50 / 25 / 10% of traces taken from LIMO and the rest from hindsight **v1** | 7:29 / 7:14 / 6:42 (4 GPU) |
 
 Every run uses LIMO's default config verbatim — full fine-tune, ZeRO-3, `cutoff_len 16384`,
 lr 5e-6, cosine, 15 epochs, **global batch 8, 1,500 steps**. Every run sees exactly 800 problems.
@@ -213,6 +234,14 @@ occurrences in 30 AIME24 responses; responses containing any epistemic token wen
 ## Part 2 — the first attack: epistemic supplementation (proposal §4.3)
 
 The defense above works. Does the cheapest possible attack beat it?
+
+> **Caveat added 2026-09-09:** the three mixtures were built from the **v1** defended pool, so
+> everything in this section measures supplementation against the weaker defense. With v2 the
+> LIMO-minus-hindsight gap widens from 6.3 pp to 13.3 pp, so every "% of gap recovered" figure
+> moves. **The non-monotonic mix10 finding is the one at risk** — it was defined by mix10 (52.2%)
+> falling below hindsight (56.5%), and v2 hindsight is 49.5%, already below mix10. Rebuilding the
+> mixtures on v2 is the correct follow-up; until then read this section as holding for the v1
+> defense specifically.
 
 **Threat model.** The defender serves hindsight traces. The attacker mixes in epistemic traces
 obtained elsewhere — LIMO is a free public download. No curation, no algorithm change, just
@@ -331,6 +360,78 @@ already needed Liger fused cross-entropy to fit 46 GB. Full write-up:
 
 ---
 
+## Part 3 — the defended dataset was generated incorrectly, and fixing it strengthens the defense
+
+### Why we looked
+
+The hindsight-v1 student emitted `</think>` in **499/500** MATH500 responses. LIMO: 0/500. Base:
+0/500. A tag that appears nowhere in the undefended data and nowhere in the base model's behaviour,
+reproduced by essentially every response, is not a curiosity — it means the defended traces were
+teaching something other than "solve confidently".
+
+### What was wrong
+
+Kim et al.'s generator calls the teacher through the **raw completions endpoint**, bypassing the
+chat template, and stores the whole reply verbatim (`new_item["output"] = teacher_text`).
+
+DeepSeek-R1's template *opens* a reasoning block for the model — its generation prompt ends
+`<|Assistant|><think>\n`. Bypassing the template means no opener is ever emitted, but the model
+still closes one out of habit and then writes its answer. So every defended trace contained
+**two complete solutions** — the model's scratchpad and its polished answer — separated by an
+unmatched `</think>`. DeepSeek's own template defines the answer as
+`content.split('</think>')[-1]`; the scratchpad is what the vendor discards.
+
+Three defects, not one:
+
+| | v1 (Kim et al.'s procedure) | v2 (corrected) |
+| --- | --- | --- |
+| endpoint | `completions` — no chat markers, no BOS, no `<think>` opener | `chat/completions` with the template |
+| reasoning primer | literal prefix `"Okay, so I"` | the template's `<think>\n` |
+| temperature | 0.4 | **0.6** (DeepSeek recommend 0.5–0.7; below that R1 is prone to endless repetition) |
+
+The temperature is not cosmetic: 40/800 v1 traces ran to the 32k cap without ever closing their
+block, which is the documented failure mode below DeepSeek's range.
+
+### What changed in the data
+
+| | v1 | v2 |
+| --- | --- | --- |
+| traces containing `</think>` | 760/800 | **0** |
+| traces with >1 `\boxed` | 761 | 63 *(LIMO itself has 479)* |
+| epistemic tokens / 1k words | 0.655 | **0.024** |
+| mean trained tokens | 1,260 | 486 |
+| max trained tokens | 32,788 | **1,369** |
+| truncated at `cutoff_len 16384` | 7/800 | **0/800** |
+
+### What changed in the result
+
+| hindsight | MATH500 | AMC23 | AIME24 | AIME25 | pooled | vs base |
+| --- | --- | --- | --- | --- | --- | --- |
+| v1 | 64.2% | 37.5% | 6.7% | 3.3% | 56.5% | +6.7 pp |
+| **v2** | 56.8% | 27.5% | **3.3%** | 3.3% | **49.5%** | **−0.3 pp** |
+
+**The corrected defense transfers nothing.** 49.5% against an untrained baseline of 49.8%, and it
+lands on Kim et al.'s published AIME24 cell exactly (1/30 vs 1/30). The student is also clean:
+0.0 epistemic tokens per response, 0/30 responses containing any, and **0/30 containing `</think>`**
+where v1 produced 29/30.
+
+**The training dynamics did not change** — v2's mean train loss is 0.0389 against v1's 0.0338,
+both collapsing to ~0.0001 by step 900 while LIMO is still at 0.076. That the loss signature
+survives the correction is evidence it belongs to the defense (traces with no branch points are
+near-trivial to fit) rather than to v1's defects.
+
+### Limitation
+
+**Two variables moved, not one.** The artifacts went away *and* the token budget fell 2.6×
+(1.01 M → 388 k), because a v1 trace carried two solutions and a v2 trace carries one. There is no
+token-neutral version of this fix. The defensible claim is that a correctly-generated defended
+dataset transfers nothing — not that artifact removal alone caused the −7.0 pp.
+
+Full analysis: `results/m3b_hindsight_v2.md`. Dataset provenance and file locations, with both
+versions retained: `results/hindsight_versions.md`.
+
+---
+
 ## Caveats and open items
 
 | | |
@@ -382,8 +483,12 @@ Part 2 is the cheapest outstanding experiment and should go first.
 | --- | --- |
 | `results/m1_base.md` | base cell; the greedy-nondeterminism diagnosis |
 | `results/m2_limo.md` | LIMO cell; +13.0 pp; termination pathology; epoch sweep |
-| `results/m3_hindsight.md` | hindsight cell; collapse; difficulty dependence; dataset audit |
+| `results/m3_hindsight.md` | hindsight cell (v1); collapse; difficulty dependence; dataset audit |
+| `results/m3b_hindsight_v2.md` | **the corrected defense: transfers nothing, matches the published AIME24 cell** |
 | `results/m6_supplementation.md` | the supplementation attack; dose-response sweep; non-monotonicity |
+| `results/m6b_reconstruction_design.md` | the reconstruction attack: hypotheses, conditions, the `solo` control |
+| `results/m6b_prompts.md` | the three reconstruction prompts verbatim, and how generation runs |
+| `results/hindsight_versions.md` | v1 vs v2 defended datasets: what differs, where everything lives |
 | `results/deviations.md` | all 7 deviations and whether each can affect results |
 | `results/eval_table.md` | every metric, recomputed from stored per-problem verdicts |
 | `CLAUDE.md` | how to run all of this with a different student model |
