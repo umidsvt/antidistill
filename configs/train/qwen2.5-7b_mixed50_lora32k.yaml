@@ -1,0 +1,67 @@
+# LoRA variant of condition "mixed50" at cutoff_len 32768.
+# ATTACK: epistemic supplementation at 50% (proposal section 4.3). 400 hindsight + 400 LIMO traces, interleaved over the same 800 problems.
+#
+# Relationship to the full-finetune configs (qwen2.5-7b_mixed50.yaml):
+# everything is held fixed -- same base model, same dataset, same 15 epochs, same global
+# batch 8, same cosine schedule with no warmup -- EXCEPT finetuning_type and the learning
+# rate, which must rise for LoRA (see the DEVIATION note below).
+#
+#   GPUS=0,1,2,3 scripts/20_train.sh configs/train/qwen2.5-7b_mixed50_lora32k.yaml
+
+### model
+model_name_or_path: Qwen/Qwen2.5-7B
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_rank: 32
+lora_alpha: 64
+lora_dropout: 0.0
+# "all" = every linear projection (q,k,v,o,gate,up,down) -> ~80.7M trainable params (1.06% of 7.6B).
+lora_target: all
+# ZeRO-2, not the ZeRO-3 of the full-FT configs. With LoRA the optimizer/gradient state that
+# ZeRO-3 exists to shard is ~1GB, not ~86GB, so sharding the frozen base weights buys headroom
+# we do not need and costs a per-layer all-gather on every forward.
+deepspeed: configs/deepspeed/ds_z2_config.json
+flash_attn: fa2
+
+# Same rationale as the full-FT configs: without Liger's fused linear cross-entropy the fp32
+# upcast over Qwen's 152k vocab materialises a [seq, vocab] logits tensor -- 9.3GB at seq 16384
+# and 18.6GB at seq 32768 -- which does not fit on a 46GB card. Fused kernel, same loss.
+enable_liger_kernel: true
+
+### dataset
+dataset: limo_mixed_50
+dataset_dir: data
+cutoff_len: 32768
+overwrite_cache: true
+preprocessing_num_workers: 64
+template: qwen
+
+### output
+output_dir: saves/Qwen2.5-7B_mixed50_lora32k
+logging_steps: 1
+save_strategy: epoch
+# Adapter weights only (~161MB/checkpoint); skips the DeepSpeed optimizer state that made the
+# full-FT checkpoints ~100GB each and required scripts/21_prune_checkpoints.sh. 15 epochs fit in
+# ~2.4GB, so no pruning is needed here. Trade-off: these checkpoints cannot resume training.
+save_only_model: true
+plot_loss: true
+overwrite_output_dir: true
+
+### train
+per_device_train_batch_size: 1
+# 4 GPUs x bs1 x ga2 = global batch 8, matching the LIMO recipe (8 x bs1 x ga1).
+gradient_accumulation_steps: 2
+# DEVIATION (antidistill) -- 1.0e-4, not the full-FT 5.0e-6. A LoRA adapter initialised with B=0
+# starts as an identity map and its effective update is scaled by alpha/rank; at a full-finetune
+# LR of 5e-6 over 1500 steps it barely departs from the base model. 1e-4 is the standard LoRA SFT
+# rate. This is the ONE hyperparameter that differs from the full-FT configs, and it is a
+# confound for any full-FT-vs-LoRA comparison -- see results/deviations.md.
+learning_rate: 1.0e-4
+num_train_epochs: 15
+lr_scheduler_type: cosine
+warmup_ratio: 0.0
+bf16: true
+ddp_timeout: 180000000
