@@ -16,6 +16,8 @@ and one changes GPU count while holding the global batch fixed. **None change th
 | 5 | `eval_acc.py` honours `--output_dir` | Upstream hardcodes `avg_outputs/` | No — output path only. |
 | 6 | **M3 only:** 4 GPUs + `gradient_accumulation_steps: 2` (M2 used 8 GPUs + `ga: 1`) | Broken P2P makes 4 GPUs 1.39x faster than 8 on this host (18.8 vs 26.2 s/it) | No — identical global batch of 8; same mean gradient over the same examples, differing only in float summation order. Well below the greedy-decoding nondeterminism already accepted. |
 | 7 | vLLM OpenAI server instead of SGLang for the hindsight teacher | sglang not installed; would contend with vLLM's pins in the same env | No — serving layer only. The generator calls `/v1/completions`, which both implement identically; model, prompt and sampling unchanged. |
+| 8 | **M7 (LoRA arm) only:** `finetuning_type: lora` (r=32, α=64, target `all`), `learning_rate` 5.0e-6 → 1.0e-4, ZeRO-3 → ZeRO-2 | Not a forced deviation — a deliberate additional arm | **Yes, by construction.** These runs are a separate experiment, not a replication of the table. See §8 and `results/m7_lora.md`. |
+| 9 | **M7 only:** `cutoff_len` 16384 → 32768 for the 32k half | Not forced — the point of that half | **Yes, deliberately.** Removes the §7.1 truncation confound (LIMO 32.0% → 0.2% truncated). See `results/m7_lora.md` §1. |
 
 Unchanged and verbatim from LIMO's `train_limo.yaml`: `finetuning_type: full`, ZeRO-3,
 `cutoff_len: 16384`, `template: qwen`, `per_device_train_batch_size: 1`,
@@ -104,3 +106,18 @@ on our side will materially speed this up.
 Upstream hardcodes a relative `avg_outputs/` and silently ignores `--output_dir` (which
 `eval.py` honours), scattering avg@k results into the harness directory. Now respects
 `--output_dir`; default preserves upstream behaviour.
+
+---
+
+## 8. M7 LoRA arm — a separate experiment, not part of the replication
+
+Deviations 1-7 are "forced, and cannot change the recipe". **8 and 9 are the opposite:** they
+change the recipe on purpose and apply *only* to `configs/train/*_lora{16k,32k}.yaml`. The
+M1/M2/M3/M6 numbers are untouched by them. Listed here so a LoRA config is never mistaken for a
+replication config.
+
+The one to remember: **`learning_rate` 5.0e-6 → 1.0e-4**, because a LoRA adapter starts at B=0
+and barely departs from base at a full-finetune rate. So **full-FT-vs-LoRA is a two-variable
+comparison**; comparisons *within* the arm hold the LR fixed and are clean.
+
+Full rationale, results and confounds: `results/m7_lora.md`.
