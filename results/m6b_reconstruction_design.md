@@ -59,11 +59,14 @@ All produce 800 traces on the same problems, trained with identical hyperparamet
 
 **A1 — style re-injection.** Ask an LLM to rewrite the defended trace as a first-person
 exploration with false starts and self-correction. Cheapest, and the purest test of H1: the doubt
-is *fabricated*, since the rewriter never searched.
+is *fabricated*, since the rewriter never searched. **Implementation changed after the pilot** —
+it runs with the model's scratchpad suppressed, because harvesting the visible answer alone
+produced no doubt at all; see §7.1.
 
 **A2 — guided re-derivation.** Give the model the problem *and* the defended solution as a hint,
 then let it reason naturally with **no confidence instruction**, and keep its genuine
-`reasoning_content` plus its answer. The doubt here is *real* — it is the model's own search —
+`reasoning_content` plus its answer. **Changed after the first pass** — when the model never closes
+its reasoning block the `reasoning` is now salvaged as the trace rather than discarded; see §7.2. The doubt here is *real* — it is the model's own search —
 but steered toward the defended answer. Note this is exactly what our own v2 pipeline discards:
 `--reasoning-parser deepseek_r1` splits the scratchpad off and we keep only `.content`.
 

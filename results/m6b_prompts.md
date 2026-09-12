@@ -59,8 +59,19 @@ student trained on this matches one trained on real LIMO traces, then epistemic 
 *linguistic habit* and placement does not matter (H1). If it does not, placement carries real
 information (H2).
 
-**Output taken:** `.content` only. The model's own scratchpad is discarded here, because the
-fabricated doubt we want to study is in the visible rewrite.
+**Output taken:** the whole completion — because A1 is generated with **no scratchpad at all**.
+
+> **Corrected 2026-09-10.** A1 originally used the chat endpoint and harvested `.content`. A
+> 20-problem pilot showed that producing **0.193** epistemic tokens/1k words with doubt in 1/20
+> traces — indistinguishable from the defended pool's 0.024. The cause: R1 *obeys* "show where it
+> could go wrong", but does so in `reasoning_content` (**44.89** per 1k words) and still emits a
+> clean, confident `.content` (**0.00**) — structurally the same behaviour the defense exploits.
+>
+> A1 now sends a manual chat template ending in a **pre-closed** `<think>\n</think>\n\n` through
+> the **completions** endpoint (`NOTHINK_TEMPLATE`). The chat endpoint cannot be used: DeepSeek's
+> template applies `content.split('</think>')[-1]` to assistant messages and would delete the
+> prefill. With no scratchpad available the instructed doubt has nowhere to go but the visible
+> output — **0.00 -> 26.48** on the diagnostic problem, 13.7 across the finished pool.
 
 ---
 
@@ -141,11 +152,24 @@ roughly 10x wall-clock.
 
 **Assembling the training target** (`build_output`):
 
-| mode | target |
-| --- | --- |
-| `style` | `content` |
-| `search` | `reasoning_content` + `"\n\n"` + `content` |
-| `solo` | `reasoning_content` + `"\n\n"` + `content` |
+| mode | endpoint | target |
+| --- | --- | --- |
+| `style` | `completions` + `NOTHINK_TEMPLATE` | the whole completion (no scratchpad exists) |
+| `search` | `chat` | `reasoning_content` + `"\n\n"` + `content` |
+| `solo` | `chat` | `reasoning_content` + `"\n\n"` + `content` |
+
+**When `content` is empty** (`search`/`solo` only — the model never closed its reasoning block),
+the `reasoning` is **salvaged as the trace** rather than discarded. Discarding it originally cost
+50/800 problems, throwing away 48k-134k characters of exactly the search this attack harvests.
+Salvage is guarded two ways, because a trace that never terminates is often a repetition loop and
+training on one would teach the student to loop:
+
+- **`MIN_REPETITION_RATIO = 0.60`** on distinct 12-grams. Real LIMO traces never fall below 0.879;
+  true loops score under 0.2.
+- **Loop-onset truncation** (`clean_prefix`) keeps the genuine prefix of a trace that sticks later,
+  cutting at the first degenerate sliding window and then re-validating globally — local windows
+  cannot see long-range repetition (one trace repeated a passage every ~1000 words, passing every
+  local window while scoring 0.291 overall).
 
 The two halves are joined with **plain whitespace, never a `</think>` delimiter**. That tag is the
 artifact 499/500 v1-trained students learned to reproduce (`results/hindsight_versions.md`);
