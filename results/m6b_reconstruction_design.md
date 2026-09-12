@@ -1,6 +1,8 @@
 # M6b — Epistemic reconstruction attack (design)
 
-**Status: designed 2026-09-08, not yet run.** Blocked only on GPUs (hindsight_v2 training).
+**Status: generation complete 2026-09-10; training pending.** Design below was fixed before any
+result was seen. What actually happened during generation — including two defects the pilot
+caught and how the trace pools were repaired to a full 800 — is in section 7.
 
 The three prompts, verbatim, with the reasoning behind each wording choice and the mechanics
 of generation: **`results/m6b_prompts.md`**.
@@ -110,11 +112,123 @@ can tell, is not something Kim et al. measure.
 
 ---
 
+## 7. What generation actually did (2026-09-10)
+
+### 7.1 The pilot caught A1 harvesting the wrong half
+
+A 20-problem pilot before the full run showed `style` producing **0.193** epistemic tokens/1k
+words with doubt in **1/20** traces — indistinguishable from the defended pool's 0.024. Diagnosing
+one call explained it:
+
+| | chars | epistemic /1k words |
+| --- | --- | --- |
+| `reasoning_content` | 13,749 | **44.89** |
+| `.content` | 824 | **0.00** |
+
+The model *obeys* "show where it could go wrong" — but R1 always emits messy thinking then a clean
+answer, so the doubt lands in the scratchpad and `.content` returns confident regardless of the
+prompt. **That is structurally the same behaviour the defense exploits.**
+
+Fix: give A1 **no scratchpad**. A manual chat template with a pre-closed `<think></think>` block,
+sent through the completions endpoint (the chat template applies `content.split('</think>')[-1]`
+to assistant messages and would delete the prefill). The instructed doubt then has nowhere to go
+but the visible output: **0.00 -> 26.48** on the diagnostic problem, 13.9 across the full pool.
+
+Had the pilot been skipped, A1 would have been a null result caused by a harvesting bug rather
+than by anything about epistemic verbalization.
+
+### 7.2 Discarding unterminated reasoning cost 50 problems
+
+`build_output` originally returned `None` whenever `.content` was empty — throwing away the
+`reasoning_content` with it. But an unterminated trace still contains 48k-134k characters of
+genuine search, which **is the thing this attack harvests**. Salvaging it recovers the problem.
+
+### 7.3 Degenerate loops, and why a guard was needed
+
+Salvaging blindly would ship repetition loops. Calibrated on real data:
+
+| pool | min | p1 | median |
+| --- | --- | --- | --- |
+| LIMO (real traces) | **0.879** | 0.959 | 0.995 |
+| style | 0.154 | 0.327 | 0.995 |
+| search | 0.650 | 0.838 | 0.991 |
+| solo | 0.281 | 0.725 | 0.980 |
+
+Score = fraction of distinct 12-word windows. **Real LIMO traces never fall below 0.879**; our
+worst generated trace scores **0.154** and is one sentence repeated for 71,111 characters. Such
+traces also *inflate* epistemic density (52.7 and 60.6 per 1k words, because "Wait...Wait...") — a
+reason not to trust that metric without the repetition check. There were few enough that pool
+means barely moved (style 13.911 -> 13.525 excluding them).
+
+`MIN_REPETITION_RATIO = 0.60` sits above every true loop (<0.2) and below LIMO's floor. **This is
+a filter of our own invention**, not inherited from LIMO or Kim et al.; recorded in
+`results/deviations.md`.
+
+### 7.4 Loop-onset truncation
+
+A degenerate trace is usually genuine for a while and then sticks, so the clean prefix is
+recoverable. Two implementations were needed:
+
+- **Global binary search (wrong).** A prefix can absorb several loop iterations and still average
+  above threshold. On trace 258 it returned a "clean" prefix that still ended mid-loop.
+- **Local sliding window (used).** Cut at the first window that degenerates. Trace 258:
+  12,948w @ 0.154 -> 1,798w @ 0.965.
+- **Plus a global re-check.** Local windows cannot see *long-range* repetition: trace 71 repeated
+  a passage every ~1000 words, passing every local window while scoring 0.291 overall. The cut
+  prefix is therefore validated globally and refused if it still fails.
+
+### 7.5 Final trace accounting
+
+| | style | search | solo |
+| --- | --- | --- | --- |
+| first pass | 800 | 783 | 765 |
+| after salvaging unterminated reasoning | 800 | **800** | 786 |
+| degenerate (<0.70) found | 18 | 1 | 5 |
+| ... recovered by loop-onset truncation | 12 | 1 | 4 |
+| ... unsalvageable, regenerated | 6 | 0 | 2 |
+
+An earlier plan to drop the 50 problems all modes could not cover was **rejected**: it would have
+biased the set (the dropped problems were ~11% harder by LIMO trace length) and broken the
+800-problem coverage every other condition has.
+
+---
+
 ## 6. Cost and confounds
 
 Generation ~1-2 h per condition on 4 GPUs (A2 is cheaper than the hindsight run: no validation
 retries needed if the defended answer is taken as ground truth). Training ~6 h per condition,
 evaluation ~2 h.
+
+**Problem coverage — all three pools are complete at 800/800 (2026-09-10).**
+
+The teacher fails to produce a usable trace on some problems: it never closes its `</think>`
+block within the token budget (repetition loops, R1's documented failure mode), so no answer
+exists. Empty targets cannot be shipped — they teach the student to emit nothing.
+
+An earlier version of this plan dropped those problems, leaving the 750 all three modes could
+cover. **That was rejected**, for two reasons:
+
+- **It biased the set.** The 50 uncovered problems are **~11% harder** (median LIMO trace 13,272
+  tokens vs 11,934 for the rest) — expected, since harder problems make the teacher reason longer
+  and longer reasoning is what loops. Evaluating on the remainder would have made the attack look
+  better than it is.
+- **It broke coverage parity** with the 800-problem base / LIMO / hindsight conditions, which is
+  the property every comparison in this project rests on.
+
+They were recovered instead, in three stages (see 7.2-7.5): salvaging unterminated reasoning,
+cutting degenerate traces at the loop onset, and regenerating what neither fixed.
+
+| | style | search | solo |
+| --- | --- | --- | --- |
+| first pass | 800 | 783 | 765 |
+| + salvaged unterminated reasoning | 800 | **800** | 786 |
+| + loop-onset truncation | 800 | 800 | 790 |
+| + regeneration | **800** | **800** | **800** |
+
+The failures were themselves a result about the control: **an unaided attacker does not merely get
+wrong answers on the hardest problems, it sometimes gets no answer at all.** Of the `solo` traces
+recovered from that state, essentially none reach LIMO's answer — the problems where it loops are
+the problems it cannot solve.
 
 **Confounds to control up front:**
 

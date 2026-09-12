@@ -14,6 +14,9 @@
 | mixed10_ep15 | aime | 0.0 | 1 | 3/30 = 10.00% | — | — |
 | mixed25_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
 | mixed50_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
+| recon_search_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
+| recon_solo_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
+| recon_style_ep15 | aime | 0.0 | 1 | 4/30 = 13.33% | — | — |
 | base | aime25 | 0.0 | 1 | 2/30 = 6.67% | — | — |
 | hindsight_ep15 | aime25 | 0.0 | 1 | 1/30 = 3.33% | — | — |
 | hindsight_v2_ep15 | aime25 | 0.0 | 1 | 1/30 = 3.33% | — | — |
@@ -21,6 +24,9 @@
 | mixed10_ep15 | aime25 | 0.0 | 1 | 2/30 = 6.67% | — | — |
 | mixed25_ep15 | aime25 | 0.0 | 1 | 4/30 = 13.33% | — | — |
 | mixed50_ep15 | aime25 | 0.0 | 1 | 2/30 = 6.67% | — | — |
+| recon_search_ep15 | aime25 | 0.0 | 1 | 6/30 = 20.00% | — | — |
+| recon_solo_ep15 | aime25 | 0.0 | 1 | 6/30 = 20.00% | — | — |
+| recon_style_ep15 | aime25 | 0.0 | 1 | 1/30 = 3.33% | — | — |
 | base | amc | 0.0 | 1 | 16/40 = 40.00% | — | — |
 | hindsight_ep15 | amc | 0.0 | 1 | 15/40 = 37.50% | — | — |
 | hindsight_v2_ep15 | amc | 0.0 | 1 | 11/40 = 27.50% | — | — |
@@ -28,6 +34,9 @@
 | mixed10_ep15 | amc | 0.0 | 1 | 15/40 = 37.50% | — | — |
 | mixed25_ep15 | amc | 0.0 | 1 | 19/40 = 47.50% | — | — |
 | mixed50_ep15 | amc | 0.0 | 1 | 20/40 = 50.00% | — | — |
+| recon_search_ep15 | amc | 0.0 | 1 | 19/40 = 47.50% | — | — |
+| recon_solo_ep15 | amc | 0.0 | 1 | 23/40 = 57.50% | — | — |
+| recon_style_ep15 | amc | 0.0 | 1 | 26/40 = 65.00% | — | — |
 | base | math | 0.0 | 1 | 275/500 = 55.00% | — | — |
 | hindsight_ep15 | math | 0.0 | 1 | 321/500 = 64.20% | — | — |
 | hindsight_v2_ep15 | math | 0.0 | 1 | 284/500 = 56.80% | — | — |
@@ -35,6 +44,9 @@
 | mixed10_ep15 | math | 0.0 | 1 | 293/500 = 58.60% | — | — |
 | mixed25_ep15 | math | 0.0 | 1 | 332/500 = 66.40% | — | — |
 | mixed50_ep15 | math | 0.0 | 1 | 356/500 = 71.20% | — | — |
+| recon_search_ep15 | math | 0.0 | 1 | 356/500 = 71.20% | — | — |
+| recon_solo_ep15 | math | 0.0 | 1 | 371/500 = 74.20% | — | — |
+| recon_style_ep15 | math | 0.0 | 1 | 354/500 = 70.80% | — | — |
 
 ## Reference — Kim et al. / proposal, Qwen2.5-7B, AIME24 greedy pass@1
 

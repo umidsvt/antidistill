@@ -104,3 +104,32 @@ on our side will materially speed this up.
 Upstream hardcodes a relative `avg_outputs/` and silently ignores `--output_dir` (which
 `eval.py` honours), scattering avg@k results into the harness directory. Now respects
 `--output_dir`; default preserves upstream behaviour.
+
+---
+
+## Upstream data defects in LIMO-v2 (not fixed, documented)
+
+Found 2026-09-10 while auditing generated traces. These are properties of `GAIR/LIMO-v2`
+itself, inherited by every condition in this study.
+
+**1. Six problems reference multiple-choice options that are not listed.** Indices 4, 39, 206,
+246, 469, 799. Example (799): *"Which one of the following is not equivalent to $0.000000375$?"*
+— no options follow. **LIMO's own reference solution admits this in 4 of the 6**, e.g. *"But wait,
+the options aren't listed here."*
+
+Not fixed, deliberately: supplying options would mean inventing benchmark content, and the
+dataset would no longer be LIMO-v2, so the replication against Kim et al. would stop being one.
+Every condition receives the identical instruction text, so this is **common-mode noise, not
+bias between conditions**. These are also *training* problems — evaluation is on MATH500 /
+AMC23 / AIME24 / AIME25 — so the effect is 6/800 degraded training examples, not corrupted
+scores.
+
+**2. Six problems appear twice** with different solutions (792 unique instructions across 800
+rows). Relevant when keying datasets by instruction text: doing so silently miscounts 8 rows.
+`answers_agree()` and the mixture builders match on the full (instruction, output) pair for this
+reason.
+
+**3. ~40 traces never box a final answer**, trailing off instead (e.g. *"...so I'll proceed with
+the boxed answers as above"*). This puts a floor of roughly 7% on any "answer correctness"
+figure computed against LIMO gold, in either direction — see `scripts/44_audit_answers.py`,
+which reports these as `unjudgeable` rather than counting them as disagreements.

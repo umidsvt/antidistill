@@ -89,6 +89,37 @@ Put your final answer within \\boxed{{}}."""
 
 PROMPTS = {"style": STYLE_PROMPT, "search": SEARCH_PROMPT, "solo": SOLO_PROMPT}
 
+# Distinct-12-gram floor for salvaging an unterminated reasoning trace. Healthy prose sits
+# near 1.0; calibrate against the completed pools before changing this.
+MIN_REPETITION_RATIO = 0.60
+
+
+# Manual chat template with an ALREADY-CLOSED think block. Prefilling this leaves the model no
+# scratchpad, so instructed doubt has to appear in the visible output.
+#
+# Why not the chat endpoint: DeepSeek's template applies content.split('</think>')[-1] to any
+# assistant message, which deletes the prefill. The completions endpoint takes the string as-is.
+NOTHINK_TEMPLATE = "<｜begin▁of▁sentence｜><｜User｜>{prompt}<｜Assistant｜><think>\n</think>\n\n"
+
+
+def strip_think(text: str) -> str:
+    """Remove any </think> the model emits anyway.
+
+    That delimiter is the artifact 499/500 v1-trained students learned to reproduce
+    (results/hindsight_versions.md); no generated dataset in this project may carry it.
+    """
+    return text.replace("</think>", "").replace("<think>", "").strip()
+
+
+def repetition_ratio(text: str, n: int = 12) -> float:
+    """Fraction of DISTINCT n-grams. Near 1.0 is healthy prose; a degenerate loop tends
+    toward 0 because it emits the same window over and over."""
+    w = text.split()
+    if len(w) < n * 4:
+        return 1.0
+    grams = [" ".join(w[i:i + n]) for i in range(len(w) - n + 1)]
+    return len(set(grams)) / len(grams)
+
 
 def build_output(mode: str, reasoning: str | None, content: str | None) -> str | None:
     """Assemble the SFT target from what the server returned.
@@ -98,13 +129,62 @@ def build_output(mode: str, reasoning: str | None, content: str | None) -> str |
     499/500 v1 students learned to reproduce (results/hindsight_versions.md), so the two halves
     are joined with plain whitespace instead.
     """
-    content = (content or "").strip()
-    reasoning = (reasoning or "").strip()
+    content = strip_think(content or "")
+    reasoning = strip_think(reasoning or "")
     if mode == "style":
+        # Generated WITHOUT a scratchpad (see NOTHINK_TEMPLATE), so everything is in `content`.
         return content or None
-    if not content:
-        return None          # never closed the block: no answer exists, retry upstream
-    return f"{reasoning}\n\n{content}" if reasoning else content
+    if content:
+        return f"{reasoning}\n\n{content}" if reasoning else content
+    # No answer: the model ran out of budget before closing its reasoning block. The
+    # reasoning itself is NOT wasted -- it is the epistemic search trace this attack exists
+    # to harvest, and LIMO targets are themselves first-person reasoning of exactly this
+    # shape. Discarding it cost 50/800 problems on the first pass.
+    #
+    # Salvage it only if it is not a degenerate repetition loop, which is R1's documented
+    # failure mode here. A looping trace would teach the student to loop.
+    if not reasoning:
+        return None
+    if repetition_ratio(reasoning) >= MIN_REPETITION_RATIO:
+        return reasoning
+    # The whole trace loops, but a loop has an ONSET: everything before it is genuine
+    # reasoning the model actually did. Keep the longest clean prefix rather than discard
+    # 76k-134k characters of real search. Binary-search the cut point.
+    return clean_prefix(reasoning)
+
+
+def clean_prefix(text: str, min_words: int = 400, win: int = 400, step: int = 100) -> str | None:
+    """Longest prefix of `text` taken up to the ONSET of a repetition loop.
+
+    A degenerate trace is genuine for a while and then sticks, so truncating at the onset
+    keeps the real search and drops the stuck tail.
+
+    Detection must be LOCAL, not a global average over the prefix: a prefix can absorb
+    several loop iterations and still average above MIN_REPETITION_RATIO when the clean
+    part is long enough. Measured on a real 12,948-word looping trace, a global binary
+    search returned a "clean" prefix that still ended mid-loop. So this slides a window
+    and cuts at the first window that degenerates.
+
+    Returns None when the clean part is shorter than min_words -- better no example than a
+    stub.
+    """
+    w = text.split()
+    if len(w) < min_words:
+        return None
+    cut = len(w)
+    for i in range(0, len(w) - win, step):
+        if repetition_ratio(" ".join(w[i:i + win]), n=8) < MIN_REPETITION_RATIO:
+            cut = i                      # loop starts inside this window
+            break
+    if cut < min_words:
+        return None
+    out = " ".join(w[:cut])
+    b = max(out.rfind(". "), out.rfind(".\n"))
+    out = (out[:b + 1] if b > len(out) * 0.5 else out).strip()
+    # Local windows cannot see LONG-RANGE repetition: a trace that repeats a passage every
+    # ~1000 words passes every 400-word window while scoring 0.29 globally (observed).
+    # So validate the cut prefix globally and refuse rather than ship a degenerate trace.
+    return out if repetition_ratio(out) >= MIN_REPETITION_RATIO else None
 
 
 def main() -> int:
@@ -137,9 +217,23 @@ def main() -> int:
     client = OpenAI(base_url=a.base_url, api_key="EMPTY", timeout=a.request_timeout, max_retries=0)
 
     def call(prompt: str):
+        """Returns (reasoning, content).
+
+        `style` suppresses the scratchpad, because R1 obeys "show your doubt" in
+        reasoning_content and still emits a clean, confident .content -- measured 44.89
+        epistemic tokens/1k words in the scratchpad against 0.00 in the answer. Harvesting
+        .content there would yield a pool indistinguishable from the defended one (0.193 vs
+        0.024 in a 20-problem pilot), i.e. no attack at all. With no scratchpad available the
+        instructed doubt lands in the visible output (26.48/1k words).
+        """
         last = None
         for attempt in range(a.api_retries + 1):
             try:
+                if a.mode == "style":
+                    r = client.completions.create(
+                        model=a.model, prompt=NOTHINK_TEMPLATE.format(prompt=prompt),
+                        temperature=a.temperature, max_tokens=a.max_new_tokens)
+                    return None, r.choices[0].text
                 m = client.chat.completions.create(
                     model=a.model, messages=[{"role": "user", "content": prompt}],
                     temperature=a.temperature, max_tokens=a.max_new_tokens,
@@ -172,6 +266,8 @@ def main() -> int:
                 "index": j,
                 "mode": a.mode,
                 "empty": not text,
+                "salvaged_unterminated": bool(text) and not (content or "").strip()
+                                          and a.mode != "style",
                 "reasoning_chars": len(reasoning or ""),
                 "answer_chars": len(content or ""),
                 "output_chars": len(text or ""),

@@ -1,7 +1,7 @@
 # Reasoning distillation, epistemic verbalization, and attacks on the defense
 
 **Qwen2.5-7B · replication 2026-09-05 · first attack 2026-09-06 · defense pipeline corrected
-2026-09-09 · seven training runs**
+2026-09-09 · reconstruction attack 2026-09-12 · ten training runs**
 
 **Part 1** reproduces the `Qwen2.5-7B` row of the proposal's §2.2 table, testing Kim et al.
 (arXiv:2603.15500): that stripping *epistemic verbalization* from otherwise-correct reasoning
@@ -16,6 +16,16 @@ incorrectly**, what we changed, and what that does to the numbers. Short version
 defense is much stronger** — it transfers nothing at all to the student — and it lands exactly on
 Kim et al.'s published figure. Part 2's conclusions are consequently scoped to the weaker dataset
 until its mixtures are rebuilt.
+
+**Part 4** runs **epistemic reconstruction**: the attacker has only defended data and must
+regenerate the doubt. **All three variants beat the defense and exceed the undefended ceiling** —
+and the control, an attacker using *no defended data at all*, scores highest. On the criterion
+fixed before running, that makes hindsight distillation **irrelevant rather than broken**: the
+attacker never needed what it protects.
+
+> **This document is the live record.** Headline numbers, the reasoning behind each design choice,
+> and every caveat that changes how a number should be read live here; per-milestone detail lives
+> in the `results/*.md` files referenced from each section.
 
 ---
 
@@ -432,6 +442,110 @@ versions retained: `results/hindsight_versions.md`.
 
 ---
 
+## Part 4 — epistemic reconstruction: the defense is bypassed, not broken
+
+Full results **`results/m6b_reconstruction.md`** · design and predictions
+**`results/m6b_reconstruction_design.md`** · prompts **`results/m6b_prompts.md`**
+
+### The question
+
+Part 2's attack assumed epistemic traces from elsewhere. This is the harder case: **only the
+defended data, so the doubt must be regenerated.** The defense destroys it at *generation* time —
+the rewrite prompt orders *"State everything with full confidence"*, so even the teacher's private
+scratchpad carries 0.732 epistemic tokens/1k words against LIMO's 35.571. Nothing recoverable is
+hidden inside the defended artifact.
+
+### Results
+
+| condition | epistemic /1k words | pooled (600) | vs base | vs defended |
+| --- | --- | --- | --- | --- |
+| base | — | 49.8% | — | — |
+| **defended v2** | 0.02 | **49.5%** | −0.3 pp | — |
+| LIMO (undefended ceiling) | 35.57 | 62.8% | +13.0 pp | +13.3 pp |
+| **A1 style** — fabricated doubt | 13.71 | **64.2%** | +14.3 pp | **+14.7 pp** |
+| **A2 search** — real doubt + defended hint | 16.49 | **64.3%** | +14.5 pp | **+14.8 pp** |
+| **A3 solo** — attacker alone, THE CONTROL | 24.18 | **67.5%** | **+17.7 pp** | **+18.0 pp** |
+
+**All three defeat the defense, and all three exceed the undefended ceiling the defense was
+protecting.**
+
+### The control decides it
+
+The criterion was fixed before running: `search` > `solo` means the attack exploits the defended
+data (defense *broken*); `search` ≈ `solo` means the attacker never needed it (defense
+*irrelevant*).
+
+**`solo` (67.5%) beats `search` (64.3%).** Including the defended traces was slightly *worse* than
+ignoring them. Hindsight distillation does not protect the teacher's advantage — an attacker with
+the problems and any competent reasoning model reproduces and exceeds undefended distillation
+without touching the defended data.
+
+### Trace correctness does not predict student quality
+
+| pool | traces reaching LIMO's answer | resulting student |
+| --- | --- | --- |
+| A2 search | **710/800 = 89%** | 64.3% |
+| A3 solo | **392/800 = 49%** | **67.5%** |
+
+**The pool whose traces are wrong half the time produced the better student.** This bears directly
+on §4.1's `Score = correctness x epistemic_density x ...`: a scorer multiplying by `correctness`
+would have ranked `search` above `solo` and selected the worse pool. **Correctness cannot enter
+`Score` as a positive multiplicative factor on this evidence.** What transfers is the *process* —
+how to explore, doubt and backtrack — not the answer at the end.
+
+### But they beat LIMO on termination, not reasoning
+
+MATH500, decomposed against LIMO as the zero point:
+
+| condition | finished | acc\|fin | **reasoning** | **termination** | net | truncated |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIMO | 441/500 | 78.2% | — | — | — | 31.9% |
+| A1 style | 467/500 | 75.8% | **−2.3 pp** | **+4.1 pp** | +1.8 pp | 2.7% |
+| A2 search | 462/500 | 77.1% | **−1.1 pp** | **+3.3 pp** | +2.2 pp | 2.3% |
+| A3 solo | 465/500 | **79.8%** | **+1.4 pp** | **+3.8 pp** | +5.2 pp | 13.2% |
+
+**The attacks do not out-reason LIMO; they out-terminate it.** Reasoning is within ±2.3 pp for all
+three, and the whole advantage is the termination term — LIMO truncates 31.9% of its traces at
+`cutoff_len 16384` while the reconstructions truncate 2.3–13.2%. **This is a confound, not a
+triumph:** the mechanism is trace length, not superior epistemic content, and a LIMO run at a
+higher `cutoff_len` would likely close most of the gap. `solo` is the partial exception — the only
+condition that genuinely out-reasons LIMO, and it does so despite the worst truncation of the three.
+
+### H1 vs H2: density matters, provenance does not
+
+Pooled accuracy is **monotonic in epistemic density** across the three attacks (64.2 → 64.3 → 67.5
+for 13.71 → 16.49 → 24.18). But `style` (doubt **fabricated** by a rewriter that already knew the
+answer) and `search` (the model's **real** search) differ by **0.1 pp**.
+
+That is **H1 with a refinement**: *how much* epistemic content a trace carries matters; *whether it
+was genuinely searched* does not. H2's specific claim — that doubt must sit where reasoning is
+really fragile — is unsupported by this pair, though the two differ in density by only 2.8, so this
+tests provenance only at matched density.
+
+### Doubt placement — and one measure not yet run
+
+The design predicted fabricated doubt would **clump** at openings or in a closing "let me verify".
+It does not: across the final pools, doubt positions are early/mid/late **32/39/29** for `style`
+against LIMO's **34/34/32**, median within 0.03. Fabricated doubt is not merely as *effective* as
+real searched doubt, it is as *well-placed*.
+
+**Outstanding:** the design's second fidelity measure — sampling the student to locate where its
+solutions genuinely diverge, then testing whether a trace's doubt coincides with those steps — has
+**not been run**. That is the measure that tests H2 directly; the H1 conclusion currently rests on
+accuracy parity and positional parity, neither of which asks whether doubt sits where reasoning is
+actually fragile.
+
+### Caveats
+
+- **The termination confound above** is the main one; the `cutoff_len` control settles it.
+- **The attacker's model is the defender's teacher** (both DeepSeek-R1-32B). This fixes capability
+  so the prompt is the only variable, but the realistic threat model gives the attacker a *weaker*
+  model. **Whether `solo` still wins with a weaker attacker is the most important follow-up.**
+- **AIME is noise-dominated**: `style` scores 1/30 on AIME25 vs 6/30 for the others, with normal
+  termination — a reasoning gap that 30 problems cannot resolve. Quote the pooled 600.
+
+---
+
 ## Caveats and open items
 
 | | |
@@ -486,7 +600,8 @@ Part 2 is the cheapest outstanding experiment and should go first.
 | `results/m3_hindsight.md` | hindsight cell (v1); collapse; difficulty dependence; dataset audit |
 | `results/m3b_hindsight_v2.md` | **the corrected defense: transfers nothing, matches the published AIME24 cell** |
 | `results/m6_supplementation.md` | the supplementation attack; dose-response sweep; non-monotonicity |
-| `results/m6b_reconstruction_design.md` | the reconstruction attack: hypotheses, conditions, the `solo` control |
+| `results/m6b_reconstruction.md` | **the reconstruction attack: results, the control, the correctness inversion** |
+| `results/m6b_reconstruction_design.md` | its design and pre-registered predictions; the defects the pilot caught |
 | `results/m6b_prompts.md` | the three reconstruction prompts verbatim, and how generation runs |
 | `results/hindsight_versions.md` | v1 vs v2 defended datasets: what differs, where everything lives |
 | `results/deviations.md` | all 7 deviations and whether each can affect results |

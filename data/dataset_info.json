@@ -52,5 +52,32 @@
       "response": "output",
       "system": "system"
     }
+  },
+  "recon_style": {
+    "file_name": "curated/limo_recon_style.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "recon_search": {
+    "file_name": "curated/limo_recon_search.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "recon_solo": {
+    "file_name": "curated/limo_recon_solo.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
   }
 }
