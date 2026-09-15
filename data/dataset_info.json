@@ -79,5 +79,32 @@
       "response": "output",
       "system": "system"
     }
+  },
+  "recon7b_style": {
+    "file_name": "curated/recon7b_style.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "recon7b_search": {
+    "file_name": "curated/recon7b_search.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "recon7b_solo": {
+    "file_name": "curated/recon7b_solo.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
   }
 }

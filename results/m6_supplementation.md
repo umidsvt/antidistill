@@ -59,6 +59,13 @@ Decomposing MATH500 (500 of the 600 problems) separates reasoning quality from a
 `accuracy | finished`: 78.2 -> 73.6 -> 68.5 -> 64.4 ~= 64.3 (hindsight). More epistemic content,
 better reasoning, no exceptions. This is exactly Kim et al.'s thesis.
 
+> **QUALIFIED 2026-09-15 by M6c.** The mechanism below holds *within this mixture series*, but it
+> is **not general**. Across the six reconstruction runs of `results/m6c_weaker_attacker.md`, the
+> correlation between no-stop token share and MATH500 finished count is **r = +0.637 — the wrong
+> sign**: `7B solo` carries 36.2% no-stop tokens and finishes 477/500, while `32B solo` carries
+> 22.1% and finishes 465/500. Across those runs no-stop share is largely a proxy for trace length,
+> and length helps. Read what follows as a demonstrated mechanism for these mixtures, not as a law.
+
 **Effect B — termination is damaged by the epistemic traces, and it is token-weighted.**
 LIMO traces are long; at `cutoff_len: 16384` the longest lose their stop token entirely
 (`results/m2_limo.md` section 4). Measured over each training set:

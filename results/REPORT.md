@@ -1,7 +1,7 @@
 # Reasoning distillation, epistemic verbalization, and attacks on the defense
 
 **Qwen2.5-7B · replication 2026-09-05 · first attack 2026-09-06 · defense pipeline corrected
-2026-09-09 · reconstruction attack 2026-09-12 · ten training runs**
+2026-09-09 · reconstruction attack 2026-09-12 · weaker attacker 2026-09-15 · thirteen training runs**
 
 **Part 1** reproduces the `Qwen2.5-7B` row of the proposal's §2.2 table, testing Kim et al.
 (arXiv:2603.15500): that stripping *epistemic verbalization* from otherwise-correct reasoning
@@ -18,10 +18,15 @@ Kim et al.'s published figure. Part 2's conclusions are consequently scoped to t
 until its mixtures are rebuilt.
 
 **Part 4** runs **epistemic reconstruction**: the attacker has only defended data and must
-regenerate the doubt. **All three variants beat the defense and exceed the undefended ceiling** —
-and the control, an attacker using *no defended data at all*, scores highest. On the criterion
-fixed before running, that makes hindsight distillation **irrelevant rather than broken**: the
-attacker never needed what it protects.
+regenerate the doubt. **All variants beat the defense and exceed the undefended ceiling** — and the
+control, an attacker using *no defended data at all*, scores highest. On the criterion fixed before
+running, that makes hindsight distillation **irrelevant rather than broken**: the attacker never
+needed what it protects.
+
+**Part 5** repeats the whole attack with an attacker **no larger than the student it trains**
+(7B instead of 32B), to test whether the control only won because the attacker matched the
+defender's teacher. **It did not: the weaker attacker produced the *better* students**, and the
+control replicates. It also **corrects a mechanism claimed in Parts 2 and 4**.
 
 > **This document is the live record.** Headline numbers, the reasoning behind each design choice,
 > and every caveat that changes how a number should be read live here; per-milestone detail lives
@@ -546,6 +551,71 @@ actually fragile.
 
 ---
 
+## Part 5 — a weaker attacker, and a correction
+
+Full results: **`results/m6c_weaker_attacker.md`**
+
+Part 4's conclusion rested on the `solo` control, but the attacker there was **the same model as
+the defender's teacher** (DeepSeek-R1-Distill-Qwen-32B). This repeats all three attacks with the
+**7B** of the same family — an attacker no larger than the student it trains. Same prompts, same
+parser, capability is the only variable.
+
+### The weaker attacker won
+
+| condition | attacker | epistemic /1k words | pooled (600) |
+| --- | --- | --- | --- |
+| defended v2 | — | 0.02 | 49.5% |
+| LIMO (undefended ceiling) | — | 35.57 | 62.8% |
+| A1 style | 32B | 13.71 | 64.2% |
+| A2 search | 32B | 16.49 | 64.3% |
+| A3 solo | 32B | 24.18 | 67.5% |
+| **A1 style** | **7B** | 4.66 | **60.8%** |
+| **A2 search** | **7B** | 18.82 | **68.3%** |
+| **A3 solo** | **7B** | 25.99 | **69.5%** |
+
+**`7B solo` is the best result in the project**, 6.7 pp above the undefended ceiling. The
+experiment was designed expecting degradation; it produced the opposite.
+
+**The control replicates.** `solo` ≥ `search` at both capability levels (67.5 vs 64.3 at 32B;
+69.5 vs 68.3 at 7B, the latter within noise). And it holds even though the correctness gap
+*widened*: the 7B's `solo` traces reach LIMO's answer only **37%** of the time against `search`'s
+81%. **An attacker whose unaided traces are wrong 63% of the time still gained nothing from being
+handed correct defended solutions.**
+
+### This one genuinely out-reasons the ceiling
+
+| MATH500 | finished | accuracy \| finished |
+| --- | --- | --- |
+| LIMO | 441/500 | 78.2% |
+| 32B solo | 465/500 | 79.8% |
+| **7B solo** | **477/500** | **80.7%** |
+
+`7B solo` beats LIMO on *both* factors — unlike the 32B runs, this is not a termination artifact.
+
+### Correction to Parts 2 and 4
+
+Part 2 attributed its non-monotonic result to a mechanism: **trained tokens with no stop signal
+damage termination**. Part 4 reused it to argue the attacks beat LIMO only on termination.
+
+**That mechanism does not generalise.** Across the six reconstruction runs, no-stop token share
+correlates with MATH500 finished count at **r = +0.637 — the wrong sign.** `7B solo` carries 36.2%
+no-stop tokens and finishes 477/500; `32B solo` carries 22.1% and finishes 465/500. Across these
+runs the measure is largely a proxy for trace length, and length helps.
+
+Both claims are now qualified in place. Part 2's non-monotonicity stands as an *observation*; its
+mechanism is demonstrated only within that mixture series.
+
+### And a confound that limits what any of this shows
+
+Epistemic density predicts pooled accuracy across the six runs at **r = +0.940**. But trained
+tokens predict it at **r = +0.938**, and the two are collinear at **r = +0.978**.
+
+**Nothing here separates "epistemic content helps" from "long traces help".** Breaking that
+requires a condition the project does not yet have — long traces with doubt stripped, or short
+traces with doubt concentrated. That is now the most valuable outstanding experiment.
+
+---
+
 ## Caveats and open items
 
 | | |
@@ -601,6 +671,7 @@ Part 2 is the cheapest outstanding experiment and should go first.
 | `results/m3b_hindsight_v2.md` | **the corrected defense: transfers nothing, matches the published AIME24 cell** |
 | `results/m6_supplementation.md` | the supplementation attack; dose-response sweep; non-monotonicity |
 | `results/m6b_reconstruction.md` | **the reconstruction attack: results, the control, the correctness inversion** |
+| `results/m6c_weaker_attacker.md` | **the weaker attacker: it wins; the density/length confound; the M6a correction** |
 | `results/m6b_reconstruction_design.md` | its design and pre-registered predictions; the defects the pilot caught |
 | `results/m6b_prompts.md` | the three reconstruction prompts verbatim, and how generation runs |
 | `results/hindsight_versions.md` | v1 vs v2 defended datasets: what differs, where everything lives |

@@ -14,6 +14,9 @@
 | mixed10_ep15 | aime | 0.0 | 1 | 3/30 = 10.00% | — | — |
 | mixed25_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
 | mixed50_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
+| recon7b_search_ep15 | aime | 0.0 | 1 | 2/30 = 6.67% | — | — |
+| recon7b_solo_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
+| recon7b_style_ep15 | aime | 0.0 | 1 | 3/30 = 10.00% | — | — |
 | recon_search_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
 | recon_solo_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
 | recon_style_ep15 | aime | 0.0 | 1 | 4/30 = 13.33% | — | — |
@@ -24,6 +27,9 @@
 | mixed10_ep15 | aime25 | 0.0 | 1 | 2/30 = 6.67% | — | — |
 | mixed25_ep15 | aime25 | 0.0 | 1 | 4/30 = 13.33% | — | — |
 | mixed50_ep15 | aime25 | 0.0 | 1 | 2/30 = 6.67% | — | — |
+| recon7b_search_ep15 | aime25 | 0.0 | 1 | 4/30 = 13.33% | — | — |
+| recon7b_solo_ep15 | aime25 | 0.0 | 1 | 5/30 = 16.67% | — | — |
+| recon7b_style_ep15 | aime25 | 0.0 | 1 | 1/30 = 3.33% | — | — |
 | recon_search_ep15 | aime25 | 0.0 | 1 | 6/30 = 20.00% | — | — |
 | recon_solo_ep15 | aime25 | 0.0 | 1 | 6/30 = 20.00% | — | — |
 | recon_style_ep15 | aime25 | 0.0 | 1 | 1/30 = 3.33% | — | — |
@@ -34,6 +40,9 @@
 | mixed10_ep15 | amc | 0.0 | 1 | 15/40 = 37.50% | — | — |
 | mixed25_ep15 | amc | 0.0 | 1 | 19/40 = 47.50% | — | — |
 | mixed50_ep15 | amc | 0.0 | 1 | 20/40 = 50.00% | — | — |
+| recon7b_search_ep15 | amc | 0.0 | 1 | 23/40 = 57.50% | — | — |
+| recon7b_solo_ep15 | amc | 0.0 | 1 | 22/40 = 55.00% | — | — |
+| recon7b_style_ep15 | amc | 0.0 | 1 | 19/40 = 47.50% | — | — |
 | recon_search_ep15 | amc | 0.0 | 1 | 19/40 = 47.50% | — | — |
 | recon_solo_ep15 | amc | 0.0 | 1 | 23/40 = 57.50% | — | — |
 | recon_style_ep15 | amc | 0.0 | 1 | 26/40 = 65.00% | — | — |
@@ -44,6 +53,9 @@
 | mixed10_ep15 | math | 0.0 | 1 | 293/500 = 58.60% | — | — |
 | mixed25_ep15 | math | 0.0 | 1 | 332/500 = 66.40% | — | — |
 | mixed50_ep15 | math | 0.0 | 1 | 356/500 = 71.20% | — | — |
+| recon7b_search_ep15 | math | 0.0 | 1 | 381/500 = 76.20% | — | — |
+| recon7b_solo_ep15 | math | 0.0 | 1 | 385/500 = 77.00% | — | — |
+| recon7b_style_ep15 | math | 0.0 | 1 | 342/500 = 68.40% | — | — |
 | recon_search_ep15 | math | 0.0 | 1 | 356/500 = 71.20% | — | — |
 | recon_solo_ep15 | math | 0.0 | 1 | 371/500 = 74.20% | — | — |
 | recon_style_ep15 | math | 0.0 | 1 | 354/500 = 70.80% | — | — |

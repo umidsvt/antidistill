@@ -37,6 +37,17 @@ echo "log   : ${LOG#$REPO/}"
 # NCCL_P2P_DISABLE=1 is required on hosts with broken P2P and harmful on healthy ones.
 if [[ -f "$REPO/.host_profile" ]]; then source "$REPO/.host_profile"; fi
 
+# HOST-SPECIFIC: vLLM ships its own custom all-reduce kernel that uses CUDA peer access
+# directly, so NCCL_P2P_DISABLE=1 does NOT cover it. On this host it dies during CUDA-graph
+# capture with:
+#   Failed: Cuda error custom_all_reduce.cuh:455 'invalid argument'
+# Whenever P2P is disabled, the custom kernel cannot work either -- disable it too.
+CUSTOM_AR_FLAG=""
+if [[ "${NCCL_P2P_DISABLE:-0}" == "1" && "$TP" -gt 1 ]]; then
+  CUSTOM_AR_FLAG="--disable-custom-all-reduce"
+  echo "note : P2P disabled on this host -> also disabling vLLM custom all-reduce"
+fi
+
 CUDA_VISIBLE_DEVICES="$GPUS" VLLM_ATTENTION_BACKEND=FLASH_ATTN \
   "$REPO/.venv-infer/bin/python" -m vllm.entrypoints.openai.api_server \
   --model "$MODEL" \
@@ -48,6 +59,7 @@ CUDA_VISIBLE_DEVICES="$GPUS" VLLM_ATTENTION_BACKEND=FLASH_ATTN \
   --host 127.0.0.1 \
   --trust-remote-code \
   --reasoning-parser deepseek_r1 \
+  ${CUSTOM_AR_FLAG} \
   > "$LOG" 2>&1 &
 
 echo "server pid $! — waiting for readiness ..."

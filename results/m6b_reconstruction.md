@@ -79,6 +79,12 @@ Decomposing MATH500 against LIMO as the zero point
 | A3 solo | 465/500 | +24 | **79.8%** | **+1.4 pp** | **+3.8 pp** | +5.2 pp | 13.2% |
 | defended v2 | 498/500 | +57 | 57.0% | −21.1 pp | +8.9 pp | −12.2 pp | 0.0% |
 
+> **QUALIFIED 2026-09-15 by M6c.** This attribution relies on M6a's no-stop-token mechanism,
+> which M6c shows does **not** generalise across attacker models (r = +0.637, wrong sign). It also
+> does not survive the weaker attacker: `7B solo` beats LIMO on **both** factors — 477/500 finished
+> *and* 80.7% accuracy-given-finished against LIMO's 441/500 and 78.2%. So "the attack only wins on
+> termination" is true of the 32B runs below but **false in general**.
+
 **The attacks do not out-reason LIMO. They out-terminate it.** Reasoning quality is within
 ±2.3 pp of LIMO for all three; the entire advantage is the termination term.
 
