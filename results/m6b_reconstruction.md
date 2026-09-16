@@ -11,14 +11,17 @@ Prompts: `results/m6b_prompts.md`.
 Greedy pass@1, pooled over 600 problems. All conditions: 800 problems, identical hyperparameters,
 1,500 steps.
 
-| condition | epistemic /1k words | pooled | vs base | vs defended |
-| --- | --- | --- | --- | --- |
-| base (untrained) | — | 49.8% | — | — |
-| **defended v2** | 0.02 | **49.5%** | −0.3 pp | — |
-| LIMO (undefended ceiling) | 35.57 | 62.8% | +13.0 pp | +13.3 pp |
-| **A1 style** (fabricated doubt) | 13.71 | **64.2%** | +14.3 pp | **+14.7 pp** |
-| **A2 search** (real doubt + defended hint) | 16.49 | **64.3%** | +14.5 pp | **+14.8 pp** |
-| **A3 solo** (attacker alone, THE CONTROL) | 24.18 | **67.5%** | **+17.7 pp** | **+18.0 pp** |
+| condition | epi /1kw | MATH500 | AMC23 | AIME24 | AIME25 | **pooled** | vs defended |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| base (untrained) | — | 55.0% | 40.0% | 20.0% | 6.7% | **49.8%** | — |
+| **defended v2** | 0.02 | 56.8% | 27.5% | 3.3% | 3.3% | **49.5%** | — |
+| LIMO (undefended ceiling) | 35.57 | 69.0% | 55.0% | 20.0% | 13.3% | **62.8%** | +13.3 pp |
+| **A1 style** (fabricated doubt) | 13.71 | 70.8% | **65.0%** | 13.3% | 3.3% | **64.2%** | **+14.7 pp** |
+| **A2 search** (real doubt + hint) | 16.49 | 71.2% | 47.5% | 16.7% | **20.0%** | **64.3%** | **+14.8 pp** |
+| **A3 solo** (attacker alone, THE CONTROL) | 24.18 | **74.2%** | 57.5% | 16.7% | **20.0%** | **67.5%** | **+18.0 pp** |
+
+MATH500 carries 500 of the 600 problems and is the only column that individually resolves these
+effects; AMC23 is 40 problems and each AIME set is 30, so one problem there is 2.5-3.3 pp.
 
 **All three attacks defeat the defense completely** — and all three **exceed the undefended LIMO
 ceiling** the defense was protecting.

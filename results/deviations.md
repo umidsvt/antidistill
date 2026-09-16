@@ -133,3 +133,49 @@ reason.
 the boxed answers as above"*). This puts a floor of roughly 7% on any "answer correctness"
 figure computed against LIMO gold, in either direction — see `scripts/44_audit_answers.py`,
 which reports these as `unjudgeable` rather than counting them as disagreements.
+
+---
+
+## 8. `extract_answer` never honoured its own fallback (found 2026-09-15)
+
+`third_party/kim_eval/utils/parser.py` declares `extract_answer(pred_str, use_last_number=True)`,
+but **the body never reads that parameter**: without a `\boxed{}` it always returns `""`. Every
+response that answers in prose is therefore recorded as "no answer produced". `eval.py` compounds
+it by calling `extract_answer(response, args.data_name)` — passing a dataset *name* into the
+`use_last_number` slot.
+
+**The impact is strongly asymmetric**, because conditions differ in how reliably they box:
+
+| condition | pooled, boxed-only | pooled, + last-number fallback | delta |
+| --- | --- | --- | --- |
+| **base** | 49.8% | **56.2%** | **+6.3 pp** |
+| LIMO | 62.8% | 66.0% | +3.2 pp |
+| defence v2 | 49.5% | 49.7% | +0.2 pp |
+| 7B solo | 69.5% | 69.5% | +0.0 pp |
+
+The untrained base model answers in prose; every fine-tuned condition boxes reliably because
+LIMO's traces always do. So the artifact **inflates every distillation effect measured against
+base**.
+
+**Consequences for claims already in `REPORT.md`:**
+
+| claim | boxed-only | corrected |
+| --- | --- | --- |
+| LIMO vs base, pooled | +13.0 pp | **+9.8 pp** |
+| defence v2 vs base, pooled | −0.3 pp | **−6.5 pp** |
+| **defence v2 vs base on MATH500** | **+1.8 pp** | **−5.4 pp (sign reverses)** |
+
+**The fix is implemented but defaults to OFF.** The fallback now exists and is gated on
+`use_last_number is True` — an identity check, deliberately, so `eval.py`'s existing
+`args.data_name` argument falls through to the old behaviour rather than silently re-grading
+every stored result.
+
+**Which number to quote depends on the question.** For *replicating Kim et al.* the boxed-only
+column is correct: it is what their harness computes, so their +13.4 pp and our +13.0 pp are
+measured the same way. For *what the models actually do*, the fallback column is correct. Both are
+reported; `scripts/33_regrade_fallback.py` regenerates the comparison from stored outputs with no
+GPU.
+
+**GSM8K cannot use the boxed-only grading at all.** Base scores 37.2% boxed-only against 72.2%
+with the fallback — 277/500 responses answer in prose. Word problems do not elicit `\boxed{}` the
+way LaTeX-heavy competition problems do (85/500 on MATH500). See `results/gsm8k_proposal.md`.

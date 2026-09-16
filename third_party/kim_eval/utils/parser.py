@@ -496,7 +496,24 @@ def extract_theoremqa_answer(pred: str, answer_flag: bool = True):
     return pred
 
 
-def extract_answer(pred_str, use_last_number=True):
+def extract_answer(pred_str, use_last_number=False):
+    """Pull the final answer out of a generation.
+
+    DEVIATION (antidistill) -- upstream declares `use_last_number=True` but the body NEVER
+    reads it: without a \boxed{} the function always returns "". So any response that answers
+    in prose is recorded as "no answer produced".
+
+    That is mild on LaTeX-heavy benchmarks (17% of base responses on MATH500) but disqualifying
+    on GSM8K word problems, where the base model answers in prose 55% of the time while every
+    fine-tuned condition boxes reliably -- inflating each distillation effect by ~35 pp of pure
+    measurement artifact. Measured on our GSM8K base run: 37.2% boxed-only vs 72.2% with the
+    fallback, 175 of 314 "wrong" answers recovered.
+
+    The fallback is now implemented but **defaults to OFF**, and the check is `is True` on
+    purpose: eval.py calls `extract_answer(response, args.data_name)`, passing a STRING into
+    this slot. A truthy-test would silently re-grade every existing result. See
+    results/deviations.md.
+    """
     pred_str = pred_str.replace("\u043a\u0438", "")
     
     pred = ""
@@ -533,6 +550,13 @@ def extract_answer(pred_str, use_last_number=True):
     if pred != "" and pred[-1] == "/":
         pred = pred[:-1]
     # pred = strip_string(pred)
+
+    # DEVIATION (antidistill): the fallback the signature always promised. Only fires when no
+    # \boxed{} is present AND the caller passed the literal True.
+    if pred == "" and use_last_number is True:
+        nums = re.findall(r"-?\d[\d,]*\.?\d*", pred_str.replace(",", ""))
+        if nums:
+            pred = nums[-1].rstrip(".")
     return pred
 
 

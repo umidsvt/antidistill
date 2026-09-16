@@ -18,17 +18,23 @@ only variable.
 Greedy pass@1, pooled over 600 problems. All conditions: 800 problems, identical hyperparameters,
 1,500 steps.
 
-| condition | attacker | epistemic /1k words | pooled | vs defended |
-| --- | --- | --- | --- | --- |
-| base (untrained) | — | — | 49.8% | — |
-| **defended v2** | — | 0.02 | **49.5%** | — |
-| LIMO (undefended ceiling) | — | 35.57 | 62.8% | +13.3 pp |
-| A1 style | 32B | 13.71 | 64.2% | +14.7 pp |
-| A2 search | 32B | 16.49 | 64.3% | +14.8 pp |
-| A3 solo | 32B | 24.18 | 67.5% | +18.0 pp |
-| **A1 style** | **7B** | 4.66 | **60.8%** | +11.3 pp |
-| **A2 search** | **7B** | 18.82 | **68.3%** | **+18.8 pp** |
-| **A3 solo** | **7B** | 25.99 | **69.5%** | **+20.0 pp** |
+| condition | attacker | epi /1kw | MATH500 | AMC23 | AIME24 | AIME25 | **pooled** |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| base (untrained) | — | — | 55.0% | 40.0% | 20.0% | 6.7% | **49.8%** |
+| **defended v2** | — | 0.02 | 56.8% | 27.5% | 3.3% | 3.3% | **49.5%** |
+| LIMO (undefended ceiling) | — | 35.57 | 69.0% | 55.0% | 20.0% | 13.3% | **62.8%** |
+| A1 style | 32B | 13.71 | 70.8% | 65.0% | 13.3% | 3.3% | **64.2%** |
+| A2 search | 32B | 16.49 | 71.2% | 47.5% | 16.7% | 20.0% | **64.3%** |
+| A3 solo | 32B | 24.18 | 74.2% | 57.5% | 16.7% | 20.0% | **67.5%** |
+| **A1 style** | **7B** | 4.66 | 68.4% | 47.5% | 10.0% | 3.3% | **60.8%** |
+| **A2 search** | **7B** | 18.82 | **76.2%** | 57.5% | **6.7%** | 13.3% | **68.3%** |
+| **A3 solo** | **7B** | 25.99 | **77.0%** | 55.0% | 16.7% | 16.7% | **69.5%** |
+
+**The 7B's advantage is concentrated in MATH500** — +5.0 pp (search) and +2.8 pp (solo) on the only
+benchmark with the resolution to show it, while AMC23 and the AIME sets move within one or two
+problems either way. The single column running against the 7B is **AIME24 for `search` (6.7% vs
+16.7%)**, a 3-problem swing with normal termination (20/30 finished), so noise-dominated rather
+than a hard-problem deficit.
 
 **The 7B attacker beat the 32B on both real-doubt conditions** — `search` 68.3% vs 64.3%, `solo`
 69.5% vs 67.5%. `7B solo` is the best result in the project, above the undefended LIMO ceiling by

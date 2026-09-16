@@ -71,10 +71,33 @@ untrained base model's 415/500 — and is still correct on only 57.0% of those, 
 66.3%. Training on defended traces made the student *worse at reasoning than no training at all*,
 while making it better at stopping.
 
-**One thing the paper does not report:** the hindsight effect is strongly **difficulty-dependent**.
-Against base it costs −16.7 pp on AIME24 but only −12.5 pp on AMC23 and **+1.8 pp on MATH500**.
-Easy problems the model can solve directly still benefit from confident procedural form; hard ones,
-which require detecting and reversing your own errors, do not.
+**One thing the paper does not report:** the hindsight effect is **difficulty-dependent**. Against
+base it costs −16.7 pp on AIME24, −12.5 pp on AMC23 and −5.4 pp on MATH500 — monotonic in
+difficulty, but **negative everywhere**.
+
+> ### CORRECTION 2026-09-15 — a grading artifact, and what it changes
+>
+> This section previously reported **+1.8 pp on MATH500** and concluded that "easy problems still
+> benefit from confident procedural form". **That was a measurement artifact and the sign
+> reverses.**
+>
+> The vendored `extract_answer` declares a `use_last_number` fallback and **never uses it**, so any
+> response answering in prose scores as "no answer produced". The untrained base model does this
+> often; every fine-tuned condition boxes reliably because LIMO's traces always do. Correcting it
+> moves **base +6.3 pp** but the defended condition only +0.2 pp:
+>
+> | | boxed-only | corrected |
+> | --- | --- | --- |
+> | LIMO vs base, pooled | +13.0 pp | **+9.8 pp** |
+> | defence vs base, pooled | −0.3 pp | **−6.5 pp** |
+> | defence vs base, MATH500 | **+1.8 pp** | **−5.4 pp** |
+>
+> **Which column to quote depends on the question.** The boxed-only numbers are what Kim et al.'s
+> harness computes, so they remain the right basis for the replication comparison (their +13.4 pp
+> against our +13.0 pp). The corrected column is what the models actually do. Every table in this
+> report is boxed-only unless stated.
+>
+> Detail: `results/deviations.md` §8. Regenerate with `scripts/33_regrade_fallback.py` (no GPU).
 
 > Under the **v1** dataset this was much stronger — hindsight scored *above* base overall
 > (56.5% vs 49.8%), so "hindsight collapses" and "hindsight beats base" were both true of the same
@@ -462,14 +485,20 @@ hidden inside the defended artifact.
 
 ### Results
 
-| condition | epistemic /1k words | pooled (600) | vs base | vs defended |
-| --- | --- | --- | --- | --- |
-| base | — | 49.8% | — | — |
-| **defended v2** | 0.02 | **49.5%** | −0.3 pp | — |
-| LIMO (undefended ceiling) | 35.57 | 62.8% | +13.0 pp | +13.3 pp |
-| **A1 style** — fabricated doubt | 13.71 | **64.2%** | +14.3 pp | **+14.7 pp** |
-| **A2 search** — real doubt + defended hint | 16.49 | **64.3%** | +14.5 pp | **+14.8 pp** |
-| **A3 solo** — attacker alone, THE CONTROL | 24.18 | **67.5%** | **+17.7 pp** | **+18.0 pp** |
+| condition | epi /1kw | MATH500 | AMC23 | AIME24 | AIME25 | **pooled (600)** | vs defended |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| base | — | 55.0% | 40.0% | 20.0% | 6.7% | **49.8%** | — |
+| **defended v2** | 0.02 | 56.8% | 27.5% | 3.3% | 3.3% | **49.5%** | — |
+| LIMO (undefended ceiling) | 35.57 | 69.0% | 55.0% | 20.0% | 13.3% | **62.8%** | +13.3 pp |
+| **A1 style** — fabricated doubt | 13.71 | 70.8% | **65.0%** | 13.3% | 3.3% | **64.2%** | **+14.7 pp** |
+| **A2 search** — real doubt + hint | 16.49 | 71.2% | 47.5% | 16.7% | **20.0%** | **64.3%** | **+14.8 pp** |
+| **A3 solo** — attacker alone, THE CONTROL | 24.18 | **74.2%** | 57.5% | 16.7% | **20.0%** | **67.5%** | **+18.0 pp** |
+
+Read the per-benchmark columns with the resolution caveat in mind: **AMC23 is 40 problems and the
+two AIME sets are 30 each**, so a single problem is 2.5–3.3 pp there. `style`'s 65.0% on AMC23
+(the best of any condition, above LIMO) and its 3.3% on AIME25 are both one- to two-problem
+excursions. **MATH500 carries 500 of the 600 problems and is the only column that individually
+resolves these effects.**
 
 **All three defeat the defense, and all three exceed the undefended ceiling the defense was
 protecting.**
@@ -562,16 +591,26 @@ parser, capability is the only variable.
 
 ### The weaker attacker won
 
-| condition | attacker | epistemic /1k words | pooled (600) |
-| --- | --- | --- | --- |
-| defended v2 | — | 0.02 | 49.5% |
-| LIMO (undefended ceiling) | — | 35.57 | 62.8% |
-| A1 style | 32B | 13.71 | 64.2% |
-| A2 search | 32B | 16.49 | 64.3% |
-| A3 solo | 32B | 24.18 | 67.5% |
-| **A1 style** | **7B** | 4.66 | **60.8%** |
-| **A2 search** | **7B** | 18.82 | **68.3%** |
-| **A3 solo** | **7B** | 25.99 | **69.5%** |
+| condition | attacker | epi /1kw | MATH500 | AMC23 | AIME24 | AIME25 | **pooled (600)** |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| base | — | — | 55.0% | 40.0% | 20.0% | 6.7% | **49.8%** |
+| defended v2 | — | 0.02 | 56.8% | 27.5% | 3.3% | 3.3% | **49.5%** |
+| LIMO (undefended ceiling) | — | 35.57 | 69.0% | 55.0% | 20.0% | 13.3% | **62.8%** |
+| A1 style | 32B | 13.71 | 70.8% | 65.0% | 13.3% | 3.3% | **64.2%** |
+| A2 search | 32B | 16.49 | 71.2% | 47.5% | 16.7% | 20.0% | **64.3%** |
+| A3 solo | 32B | 24.18 | 74.2% | 57.5% | 16.7% | 20.0% | **67.5%** |
+| **A1 style** | **7B** | 4.66 | 68.4% | 47.5% | 10.0% | 3.3% | **60.8%** |
+| **A2 search** | **7B** | 18.82 | **76.2%** | 57.5% | **6.7%** | 13.3% | **68.3%** |
+| **A3 solo** | **7B** | 25.99 | **77.0%** | 55.0% | 16.7% | 16.7% | **69.5%** |
+
+**Where the 7B's advantage actually comes from: MATH500.** It gains +5.0 pp (search) and +2.8 pp
+(solo) there — on the only benchmark with enough problems to resolve it — while AMC23 and the AIME
+sets move within one or two problems either way. The one column that runs *against* the 7B is
+**AIME24 for `search` (6.7% vs the 32B's 16.7%)**, a 3-problem swing on 30 problems with normal
+termination (20/30 finished), so it is noise-dominated rather than a hard-problem deficit.
+
+`7B style` is the only attack that falls **below** the undefended ceiling, and it is below the 32B
+`style` on every benchmark — consistent with §6, where the 7B cannot fabricate doubt on command.
 
 **`7B solo` is the best result in the project**, 6.7 pp above the undefended ceiling. The
 experiment was designed expecting degradation; it produced the opposite.
