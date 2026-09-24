@@ -87,7 +87,37 @@ QUESTION:
 
 Put your final answer within \\boxed{{}}."""
 
-PROMPTS = {"style": STYLE_PROMPT, "search": SEARCH_PROMPT, "solo": SOLO_PROMPT}
+# A4: the DECOUPLING condition (results/m6c_weaker_attacker.md §3).
+# Across all six reconstruction runs epistemic density and trace length are collinear at
+# r = 0.978, so "epistemic content helps" and "long traces help" are indistinguishable. Within
+# a single problem they are coupled too (r = +0.826), so no reselection of existing traces can
+# separate them -- the only way is to GENERATE a pool that is long like `solo` but confident
+# like the defense.
+#
+# Every clause here is load-bearing: exhaustive detail buys length, the uncertainty ban buys
+# low density, and naming the banned constructions is what the defense's own rewrite prompt
+# does (Kim et al.) -- reused verbatim so the confidence instruction is identical to the one
+# the defense uses.
+VERBOSE_CONFIDENT_PROMPT = """Solve this problem.
+
+QUESTION:
+{question}
+
+A reference solution is available if you need it; you do not have to follow its route:
+{solution}
+
+Work the problem out in exhaustive detail. Show every intermediate step, every equation, and
+every algebraic manipulation in full -- do not skip or condense any working. Verify each result
+as you obtain it.
+
+Do not express any uncertainty -- never say "I think," "probably," "wait," "maybe," "perhaps,"
+"alternatively," or "let me reconsider." Do not describe false starts, abandoned approaches, or
+changes of mind. State every step with full confidence, as settled fact.
+
+Put your final answer within \\boxed{{}}."""
+
+PROMPTS = {"style": STYLE_PROMPT, "search": SEARCH_PROMPT, "solo": SOLO_PROMPT,
+           "verbose": VERBOSE_CONFIDENT_PROMPT}
 
 # Distinct-12-gram floor for salvaging an unterminated reasoning trace. Healthy prose sits
 # near 1.0; calibrate against the completed pools before changing this.
@@ -131,8 +161,12 @@ def build_output(mode: str, reasoning: str | None, content: str | None) -> str |
     """
     content = strip_think(content or "")
     reasoning = strip_think(reasoning or "")
-    if mode == "style":
+    if mode in ("style", "verbose"):
         # Generated WITHOUT a scratchpad (see NOTHINK_TEMPLATE), so everything is in `content`.
+        # For `verbose` this is essential, not incidental: a 20-problem pilot keeping
+        # reasoning_content scored 18.83 epistemic tokens/1k words against the defense's 0.00,
+        # because the confidence instruction disciplines the visible answer while the private
+        # scratchpad doubts anyway. With no scratchpad the instruction governs everything.
         return content or None
     if content:
         return f"{reasoning}\n\n{content}" if reasoning else content
@@ -189,7 +223,7 @@ def clean_prefix(text: str, min_words: int = 400, win: int = 400, step: int = 10
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mode", choices=["style", "search", "solo"], required=True)
+    ap.add_argument("--mode", choices=["style", "search", "solo", "verbose"], required=True)
     ap.add_argument("--defended", default="data/defended/limo_hindsight_chat.json",
                     help="Defended pool. Supplies the problems, and for style/search the "
                          "solution. Ignored as a solution source in --mode solo.")
@@ -229,7 +263,7 @@ def main() -> int:
         last = None
         for attempt in range(a.api_retries + 1):
             try:
-                if a.mode == "style":
+                if a.mode in ("style", "verbose"):
                     r = client.completions.create(
                         model=a.model, prompt=NOTHINK_TEMPLATE.format(prompt=prompt),
                         temperature=a.temperature, max_tokens=a.max_new_tokens)

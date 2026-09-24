@@ -20,6 +20,7 @@
 | recon_search_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
 | recon_solo_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
 | recon_style_ep15 | aime | 0.0 | 1 | 4/30 = 13.33% | — | — |
+| strip_s1_ep15 | aime | 0.0 | 1 | 5/30 = 16.67% | — | — |
 | base | aime25 | 0.0 | 1 | 2/30 = 6.67% | — | — |
 | hindsight_ep15 | aime25 | 0.0 | 1 | 1/30 = 3.33% | — | — |
 | hindsight_v2_ep15 | aime25 | 0.0 | 1 | 1/30 = 3.33% | — | — |
@@ -33,6 +34,7 @@
 | recon_search_ep15 | aime25 | 0.0 | 1 | 6/30 = 20.00% | — | — |
 | recon_solo_ep15 | aime25 | 0.0 | 1 | 6/30 = 20.00% | — | — |
 | recon_style_ep15 | aime25 | 0.0 | 1 | 1/30 = 3.33% | — | — |
+| strip_s1_ep15 | aime25 | 0.0 | 1 | 3/30 = 10.00% | — | — |
 | base | amc | 0.0 | 1 | 16/40 = 40.00% | — | — |
 | hindsight_ep15 | amc | 0.0 | 1 | 15/40 = 37.50% | — | — |
 | hindsight_v2_ep15 | amc | 0.0 | 1 | 11/40 = 27.50% | — | — |
@@ -46,6 +48,17 @@
 | recon_search_ep15 | amc | 0.0 | 1 | 19/40 = 47.50% | — | — |
 | recon_solo_ep15 | amc | 0.0 | 1 | 23/40 = 57.50% | — | — |
 | recon_style_ep15 | amc | 0.0 | 1 | 26/40 = 65.00% | — | — |
+| strip_s1_ep15 | amc | 0.0 | 1 | 19/40 = 47.50% | — | — |
+| base_gsm8k | gsm8k | 0.0 | 1 | 186/500 = 37.20% | — | — |
+| hindsight_v2_gsm8k | gsm8k | 0.0 | 1 | 405/500 = 81.00% | — | — |
+| limo_gsm8k | gsm8k | 0.0 | 1 | 402/500 = 80.40% | — | — |
+| recon7b_search_gsm8k | gsm8k | 0.0 | 1 | 436/500 = 87.20% | — | — |
+| recon7b_solo_gsm8k | gsm8k | 0.0 | 1 | 435/500 = 87.00% | — | — |
+| recon7b_style_gsm8k | gsm8k | 0.0 | 1 | 422/500 = 84.40% | — | — |
+| recon_search_gsm8k | gsm8k | 0.0 | 1 | 404/500 = 80.80% | — | — |
+| recon_solo_gsm8k | gsm8k | 0.0 | 1 | 406/500 = 81.20% | — | — |
+| recon_style_gsm8k | gsm8k | 0.0 | 1 | 414/500 = 82.80% | — | — |
+| strip_s1_gsm8k | gsm8k | 0.0 | 1 | 386/500 = 77.20% | — | — |
 | base | math | 0.0 | 1 | 275/500 = 55.00% | — | — |
 | hindsight_ep15 | math | 0.0 | 1 | 321/500 = 64.20% | — | — |
 | hindsight_v2_ep15 | math | 0.0 | 1 | 284/500 = 56.80% | — | — |
@@ -59,6 +72,7 @@
 | recon_search_ep15 | math | 0.0 | 1 | 356/500 = 71.20% | — | — |
 | recon_solo_ep15 | math | 0.0 | 1 | 371/500 = 74.20% | — | — |
 | recon_style_ep15 | math | 0.0 | 1 | 354/500 = 70.80% | — | — |
+| strip_s1_ep15 | math | 0.0 | 1 | 348/500 = 69.60% | — | — |
 
 ## Reference — Kim et al. / proposal, Qwen2.5-7B, AIME24 greedy pass@1
 

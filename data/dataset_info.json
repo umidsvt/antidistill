@@ -106,5 +106,14 @@
       "response": "output",
       "system": "system"
     }
+  },
+  "strip_s1_recon7b_solo": {
+    "file_name": "curated/strip_s1_recon7b_solo.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
   }
 }

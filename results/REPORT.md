@@ -1,7 +1,8 @@
 # Reasoning distillation, epistemic verbalization, and attacks on the defense
 
 **Qwen2.5-7B · replication 2026-09-05 · first attack 2026-09-06 · defense pipeline corrected
-2026-09-09 · reconstruction attack 2026-09-12 · weaker attacker 2026-09-15 · thirteen training runs**
+2026-09-09 · reconstruction attack 2026-09-12 · weaker attacker 2026-09-15 · marker stripping
+2026-09-18 · GSM8K 2026-09-23 · thirteen training runs, five benchmarks**
 
 **Part 1** reproduces the `Qwen2.5-7B` row of the proposal's §2.2 table, testing Kim et al.
 (arXiv:2603.15500): that stripping *epistemic verbalization* from otherwise-correct reasoning
@@ -27,6 +28,17 @@ needed what it protects.
 (7B instead of 32B), to test whether the control only won because the attacker matched the
 defender's teacher. **It did not: the weaker attacker produced the *better* students**, and the
 control replicates. It also **corrects a mechanism claimed in Parts 2 and 4**.
+
+**Part 6** adds **GSM8K**, an easier benchmark. **The defense *helps* there (+9.0 pp over base)**, so
+the difficulty gradient crosses zero — restoring a difficulty-dependence claim that a grading
+artifact had forced us to retract. And epistemic density, the project's strongest predictor on hard
+problems (r = +0.940), **largely stops predicting on easy ones (r = +0.255)**.
+
+**Part 7** asks whether Kim et al.'s nine epistemic tokens are **causal or a proxy**, by deleting
+only those words from the best attack's traces and retraining. **Partial: it costs 7.0 pp**, landing
+65% of the way from the defense to the unstripped run. The student stops saying the words but keeps
+most of its reconsideration — and still reasons worse without them. On GSM8K the loss is **larger**
+(−10.2 pp), which argues against the pivot hypothesis the hard-suite result suggested.
 
 > **This document is the live record.** Headline numbers, the reasoning behind each design choice,
 > and every caveat that changes how a number should be read live here; per-milestone detail lives
@@ -71,9 +83,10 @@ untrained base model's 415/500 — and is still correct on only 57.0% of those, 
 66.3%. Training on defended traces made the student *worse at reasoning than no training at all*,
 while making it better at stopping.
 
-**One thing the paper does not report:** the hindsight effect is **difficulty-dependent**. Against
-base it costs −16.7 pp on AIME24, −12.5 pp on AMC23 and −5.4 pp on MATH500 — monotonic in
-difficulty, but **negative everywhere**.
+**One thing the paper does not report:** the hindsight effect is **difficulty-dependent, and changes
+sign.** Against base (fallback-graded) it costs −16.7 pp on AIME24, −15.0 pp on AMC23 and −5.4 pp on
+MATH500 — but **helps by +9.0 pp on GSM8K**, the easiest benchmark. Confident procedural traces
+benefit problems the student can solve directly and hurt those that need error recovery. See Part 6.
 
 > ### CORRECTION 2026-09-15 — a grading artifact, and what it changes
 >
@@ -174,20 +187,57 @@ no regeneration. See `CLAUDE.md` §1.
 
 ---
 
-## All seven conditions
+## All fourteen conditions
 
-| | training | wall-clock |
-| --- | --- | --- |
-| **base** | none | — |
-| **LIMO** | 800 LIMO-v2 traces, 15 epochs | 11:16 (8 GPU) |
-| **hindsight v1** | same 800 problems, defended by Kim et al.'s procedure | 6:14 (4 GPU) |
-| **hindsight v2** | same 800 problems, defended through the **corrected** teacher call (Part 3) | 6:24 (4 GPU) |
-| **mix50 / mix25 / mix10** | the same 800 problems, with 50 / 25 / 10% of traces taken from LIMO and the rest from hindsight **v1** | 7:29 / 7:14 / 6:42 (4 GPU) |
+One untrained baseline plus **thirteen separate full fine-tunes of `Qwen/Qwen2.5-7B`, each on exactly
+800 problems**, using LIMO's default config verbatim — ZeRO-3, `cutoff_len 16384`, lr 5e-6, cosine, 15 epochs,
+**global batch 8, 1,500 steps**. Problem coverage, step count and compute are held fixed everywhere.
+**Only the traces differ**, so every contrast in this report is attributable to trace content alone.
 
-Every run uses LIMO's default config verbatim — full fine-tune, ZeRO-3, `cutoff_len 16384`,
-lr 5e-6, cosine, 15 epochs, **global batch 8, 1,500 steps**. Every run sees exactly 800 problems.
-**Only the traces differ**, so problem coverage, step count and compute are held fixed across all
-six cells and every contrast in this report is attributable to trace content alone.
+| | what the 800 traces are | part | wall-clock |
+| --- | --- | --- | --- |
+| **base** | no training — stock model | 1 | — |
+| **LIMO** | the 800 `GAIR/LIMO-v2` traces (epistemic-rich, the undefended ceiling) | 1 | 11:16 (8 GPU) |
+| **hindsight v1** | same problems, defended by Kim et al.'s procedure **as published** — defective (Part 3) | 1 | 6:14 (4 GPU) |
+| **hindsight v2** | same problems, defended through the **corrected** teacher call — the real defense | 3 | 6:24 (4 GPU) |
+| **mix50 / mix25 / mix10** | 50 / 25 / 10% of traces from LIMO, the rest from hindsight **v1** | 2 | 7:29 / 7:14 / 6:42 (4 GPU) |
+| **A1 style / A2 search / A3 solo** (32B) | traces re-derived by `DeepSeek-R1-Distill-Qwen-32B`, three attacker prompts | 4 | ~8 h each (4 GPU) |
+| **A1 style / A2 search / A3 solo** (7B) | the same three prompts, attacker downgraded to the **7B** distill | 5 | ~7.8 h each (4 GPU) |
+| **S1 marker-stripped** | 7B `solo`'s traces with **only the nine epistemic marker words deleted** | 7 | 10:50 (4 GPU) |
+
+### Complete results matrix
+
+Greedy pass@1, `temperature 0.0`, TP fixed within each benchmark. The **pooled** column is the
+600-problem hard suite (MATH500 + AMC23 + AIME24 + AIME25) and is the number to judge on — the three
+small benchmarks are 30–40 problems each, where one problem is 2.5–3.3 pp.
+
+| condition | MATH500 | AMC23 | AIME24 | AIME25 | **pooled (600)** | GSM8K\* |
+| --- | --- | --- | --- | --- | --- | --- |
+| base | 55.0% | 40.0% | 20.0% | 6.7% | **49.8%** | 72.2% |
+| LIMO (undefended ceiling) | 69.0% | 55.0% | 20.0% | 13.3% | **62.8%** | 85.2% |
+| hindsight v1 (defective) | 64.2% | 37.5% | 6.7% | 3.3% | **56.5%** | — |
+| **hindsight v2 (the defense)** | 56.8% | 27.5% | 3.3% | 3.3% | **49.5%** | **81.2%** |
+| mix50 | 71.2% | 50.0% | 16.7% | 6.7% | **63.8%** | — |
+| mix25 | 66.4% | 47.5% | 16.7% | 13.3% | **60.0%** | — |
+| mix10 | 58.6% | 37.5% | 10.0% | 6.7% | **52.2%** | — |
+| A1 style — 32B | 70.8% | 65.0% | 13.3% | 3.3% | **64.2%** | 84.2% |
+| A2 search — 32B | 71.2% | 47.5% | 16.7% | 20.0% | **64.3%** | 83.2% |
+| A3 solo — 32B | 74.2% | 57.5% | 16.7% | 20.0% | **67.5%** | 83.6% |
+| A1 style — 7B | 68.4% | 47.5% | 10.0% | 3.3% | **60.8%** | 85.6% |
+| A2 search — 7B | 76.2% | 57.5% | 6.7% | 13.3% | **68.3%** | 88.4% |
+| **A3 solo — 7B (best)** | **77.0%** | 55.0% | 16.7% | 16.7% | **69.5%** | **88.6%** |
+| **S1 — markers deleted** | 69.6% | 47.5% | 16.7% | 10.0% | **62.5%** | 78.4% |
+
+\* GSM8K is **fallback-graded** (last number in the response when no `\boxed{}` is present) and run at
+TP=1. Boxed-only grading is disqualifying there — base answers 277/500 problems in prose and scores
+37.2% boxed-only against 72.2% with the fallback, while every fine-tuned condition boxes reliably.
+See `results/deviations.md` §8. GSM8K was added after the mixture sweep and the v1 runs, which is why
+those four rows are blank; nothing about them depends on it.
+
+Reading the matrix top to bottom: the corrected defense works (49.5%, right back to base),
+supplementation defeats it above a threshold and backfires below it (Part 2), reconstruction ignores
+it entirely and the **weaker** attacker wins (Parts 4–5), and deleting nine words from that winning
+attack costs 7.0 pp of its 20.0 pp advantage — about a third (Part 7).
 
 ---
 
@@ -655,6 +705,158 @@ traces with doubt concentrated. That is now the most valuable outstanding experi
 
 ---
 
+## Part 6 — GSM8K: the defense helps on easy problems
+
+Full results: **`results/gsm8k_results.md`** · design: **`results/gsm8k_proposal.md`**
+
+Added after Allouah et al., *"The Distillation Game"* (arXiv:2605.22737), which evaluates
+distillation defenses on GSM8K — and whose teacher, `DeepSeek-R1-Distill-Qwen-7B`, is the model we
+use as our 7B attacker. Evaluation only; the training set stays fixed at LIMO's 800.
+
+**Two setup notes that change how these numbers read.** (1) GSM8K is **fallback-graded**: base
+answers 277/500 in prose and scores 37.2% boxed-only vs 72.2% with the fallback (§ Headline
+correction; `results/deviations.md` §8). (2) All GSM8K rows use **TP=1**, so they are internally
+consistent but not token-for-token comparable with the TP=4 rows elsewhere.
+
+| condition | attacker | epi /1kw | GSM8K | vs base | vs LIMO |
+| --- | --- | --- | --- | --- | --- |
+| base | — | — | 72.2% | — | — |
+| **defended v2** | — | 0.02 | **81.2%** | **+9.0 pp** | −4.0 pp |
+| LIMO (ceiling) | — | 35.57 | 85.2% | +13.0 pp | — |
+| A1 style | 32B | 13.71 | 84.2% | +12.0 pp | −1.0 pp |
+| A2 search | 32B | 16.49 | 83.2% | +11.0 pp | −2.0 pp |
+| A3 solo | 32B | 24.18 | 83.6% | +11.4 pp | −1.6 pp |
+| A1 style | 7B | 4.66 | 85.6% | +13.4 pp | +0.4 pp |
+| **A2 search** | **7B** | 18.82 | **88.4%** | +16.2 pp | **+3.2 pp** |
+| **A3 solo** | **7B** | 25.99 | **88.6%** | +16.4 pp | **+3.4 pp** |
+
+### The difficulty gradient crosses zero
+
+| benchmark (easiest → hardest) | defense vs base | defense vs LIMO |
+| --- | --- | --- |
+| **GSM8K** | **+9.0 pp** | **−4.0 pp** |
+| MATH500 | −5.4 pp | −15.6 pp |
+| AMC23 | −15.0 pp | −27.5 pp |
+| AIME24 | −16.7 pp | −16.7 pp |
+
+The headline previously claimed the defense helps on easy problems, citing **+1.8 pp on MATH500**.
+That turned out to be a grading artifact (corrected: −5.4 pp) and the claim was retracted. **GSM8K
+shows the phenomenon was real** — confident procedural traces do help on problems the student can
+solve directly; the sign change simply sits below MATH500. **Hindsight distillation is nearly free on
+easy problems and ruinous on hard ones.**
+
+### Epistemic density matters only where error-recovery does
+
+| six reconstruction runs | r(epistemic density, accuracy) |
+| --- | --- |
+| hard suite (pooled 600) | **+0.940** |
+| **GSM8K** | **+0.255** |
+
+That is what the error-recovery account predicts: doubt is the channel for detecting and reversing a
+wrong path, which matters on hard problems and barely on easy ones. **It does not break the
+density/length confound** — the two stay collinear, so both axes stop predicting together. It
+constrains *where* the axis matters, not *which* half of it does the work.
+
+### On easy problems, the attacker matters more than the prompt
+
+The 7B attacker averages **87.5%** against the 32B's **83.7%** (+3.9 pp), while the three modes within
+each attacker sit within 1–3 pp. One consequence: **the 32B attacks fall *below* the LIMO ceiling on
+GSM8K** (83.2–84.2% vs 85.2%) though they exceeded it on the hard suite. "The attack beats undefended
+distillation" is benchmark-dependent for the 32B attacker; for the 7B it holds everywhere.
+
+**The control replicates** — `solo` ≥ `search` for both attackers (+0.4 and +0.2 pp, within noise). The
+attacker gains nothing from the defended traces across all five benchmarks and both capabilities.
+
+---
+
+## Part 7 — are the epistemic markers causal?
+
+Full results: **`results/m6d_strip_s1.md`** · design, pre-registered rule, frozen lexicon:
+**`results/decoupling_design.md`** §C
+
+Three separate attempts to separate epistemic density from trace length all failed — **A** reselecting
+existing traces, **B** prompting for long-but-confident generations, **C** post-hoc stripping. The two
+appear inseparable for this model, and that confound is still open. But approach C produced an
+unusually clean intervention on the way, and it answers a different question that is central to
+Kim et al.
+
+### What S1 is
+
+**The idea.** Epistemic density and trace length are collinear in every pool we have (r = 0.978
+across pools, r = +0.826 within problems), and Part 5 showed prompting cannot separate them. So
+rather than ask a model for long-but-confident traces, **edit the text directly**: take the best
+attack pool (7B `solo`) and delete the epistemic content in place, leaving everything else untouched.
+`src/antidistill/attacks/strip_epistemic.py` implements three levels of increasing aggression:
+
+| level | what it deletes | length kept | correct answers kept |
+| --- | --- | --- | --- |
+| **S1 — marker** | **the marker words themselves**, plus adjoining connective punctuation | **97.5%** | **298/298** |
+| S2 — clause | the clause containing a marker, bounded by `, ; :` or sentence end | 90.2% | 297/298 |
+| S3 — sentence | the whole sentence containing a marker | 74.4% | 293/298 |
+
+LaTeX spans are protected throughout, so mathematics is never cut. **Only S1 was trained** — it is the
+one level that changes almost nothing except the target vocabulary.
+
+**The nine markers** are the project's density lexicon, unchanged from Kim et al.: `wait`, `hmm`,
+`actually`, `maybe`, `perhaps`, `alternatively`, `i think`, `on second thought`,
+`let me reconsider`.
+
+**What S1 holds fixed.** The training config is **byte-identical to `recon7b_solo.yaml` apart from
+the dataset path and `output_dir`** — same 800 problems, same 1,500 steps, same everything. So 7B
+`solo` is not a rough comparison, it is the **exact counterfactual**: the single difference between
+the two students is that nine words were deleted from one's training text.
+
+**Why it is not the density/length experiment it started as.** The nine-marker column is **circular**
+after stripping — it counts exactly the words S1 deletes, so it drops to ~0 by construction. Measured
+with a **frozen held-out lexicon** the stripper never targets (`let me double-check`, `that doesn't
+work`, `instead`, `is that right`, `hold on`, `I made a mistake`, …), S1 changes **nothing**:
+4.01 → 4.03 per 1k words. **Stripping removes the vocabulary of doubt, not the reconsideration.** It
+was therefore re-scoped **before training** to a narrower question — *are the nine tokens causal, or a
+proxy for the reasoning that produces them?* — and must be read as a test of the marker lexicon, not
+as a density/length decoupling.
+
+**Pre-registered rule**, fixed before training (pooled 600-problem suite): within **2.0 pp** of `solo`
+= the markers are a **proxy**; within 2.0 pp of the defense = **causal**; otherwise **partial**, and
+report the position on the span. 2.0 pp is 12 problems of 600, about the `solo`-vs-`search` gap we
+already treat as noise.
+
+### Result
+
+| | MATH500 | AMC23 | AIME24 | AIME25 | **pooled** | GSM8K |
+| --- | --- | --- | --- | --- | --- | --- |
+| defended v2 | 56.8% | 27.5% | 3.3% | 3.3% | **49.5%** | 81.2% |
+| 7B `solo` (counterfactual) | 77.0% | 55.0% | 16.7% | 16.7% | **69.5%** | 88.6% |
+| **S1 — markers deleted** | **69.6%** | 47.5% | 16.7% | 10.0% | **62.5%** | **78.4%** |
+
+**Pre-registered verdict: PARTIAL.** Deleting nine words cost **7.0 pp** (42 problems, carried by
+MATH500), putting S1 **65%** of the way from the defense to `solo`. The markers are not merely a proxy,
+but they carry only about a third of the effect. The stripped text reads fluently, so this is not a
+disfluency penalty.
+
+**Exploratory** — what the students produce at inference (MATH500):
+
+| student | markers emitted | held-out reconsideration | acc \| finished |
+| --- | --- | --- | --- |
+| 7B `solo` | 13.46 /1kw | 2.99 /1kw | 80.7% |
+| **S1** | **0.06** | **2.43** | **74.5%** |
+
+The S1 student never learned to say the markers, but kept 81% of its reconsideration behaviour — and
+still reasons worse. One hypothesis, not established here: the tokens act as learned *pivots* that
+initiate re-evaluation, not as decoration on reasoning that would happen anyway.
+
+**On GSM8K the loss is larger, not smaller** (added 2026-09-23): S1 scores **78.4%** against `solo`'s
+88.6% — **−10.2 pp**, versus −7.0 pp on the hard suite — and is the only attack to fall *below* the
+defense (81.2%). Everything terminates (500/500), so it is pure reasoning. That **cuts against the
+pivot hypothesis**: if the markers triggered error recovery, removing them should hurt most where
+error recovery matters, i.e. on hard problems. Normalising by each benchmark's base→`solo` span
+(GSM8K 38% vs hard suite 65%) does not rescue it as a ceiling artifact. The markers appear to
+regulate something that pays off even on easy problems.
+
+This does **not** resolve the density/length confound (S1 does not move length), which remains the
+largest open threat to the report's density claims.
+
+---
+
 ## Caveats and open items
 
 | | |
@@ -711,6 +913,9 @@ Part 2 is the cheapest outstanding experiment and should go first.
 | `results/m6_supplementation.md` | the supplementation attack; dose-response sweep; non-monotonicity |
 | `results/m6b_reconstruction.md` | **the reconstruction attack: results, the control, the correctness inversion** |
 | `results/m6c_weaker_attacker.md` | **the weaker attacker: it wins; the density/length confound; the M6a correction** |
+| `results/gsm8k_results.md` | **GSM8K: the defense helps on easy problems; density stops predicting** |
+| `results/m6d_strip_s1.md` | **marker stripping: the nine tokens are partly causal (7.0 pp)** |
+| `results/decoupling_design.md` | two ruled-out approaches to the density/length confound; the stripping procedure |
 | `results/m6b_reconstruction_design.md` | its design and pre-registered predictions; the defects the pilot caught |
 | `results/m6b_prompts.md` | the three reconstruction prompts verbatim, and how generation runs |
 | `results/hindsight_versions.md` | v1 vs v2 defended datasets: what differs, where everything lives |

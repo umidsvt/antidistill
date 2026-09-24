@@ -8,7 +8,14 @@
 
 **Latest result (2026-09-15): the weaker attacker wins, and an earlier mechanism is corrected.** Repeating all three attacks with DeepSeek-R1-Distill-Qwen-**7B** — an attacker no larger than the student it trains — was expected to degrade the attack and expose the defended data's value. **It produced the better students instead** (`solo` 69.5%, `search` 68.3%, vs the 32B's 67.5% / 64.3%), and the `solo` control replicates at both capability levels, so the defense is irrelevant even to an attacker whose unaided traces are wrong 63% of the time. Two things qualify it: **epistemic density and trace length are collinear at r=0.978**, so nothing separates "epistemic content helps" from "long traces help"; and **M6a's no-stop-token termination mechanism does not generalise** (r=+0.637, wrong sign) — M6a and M6b are qualified in place. See `results/m6c_weaker_attacker.md`.
 
-**Queued, in priority order.** (0) a **density/length decoupling run** — long traces with doubt stripped, or short traces with doubt concentrated; without it the headline correlation is uninterpretable; (1) the **`cutoff_len` control** — now load-bearing for both M6a's non-monotonicity and M6b's margin over LIMO; (1) rebuild the M6a mixtures on the corrected defense — the non-monotonic finding rests on v1; (2) **`Score(trace, student)`**, the proposal's §4.1 curation function, of which only `epistemic_density` exists; (3) the defense API and a second defense; (4) loss masking (§4.4).
+**Queued, in priority order.**
+
+1. ~~**GSM8K across all conditions**~~ — **DONE 2026-09-17**, `results/gsm8k_results.md`. The defense *helps* on GSM8K (+9.0 pp over base), so the difficulty gradient crosses zero and the retracted difficulty-dependence claim is restored. Epistemic density predicts outcome on hard problems (r=+0.940) but barely on GSM8K (r=+0.255). Control replicates.
+2. ~~**S1 marker-stripping**~~ — **DONE 2026-09-18**, `results/m6d_strip_s1.md`. Pre-registered verdict **PARTIAL**: deleting only the nine markers cost 7.0 pp (62.5% vs `solo`'s 69.5%), 65% of the way from the defense. The student stops emitting markers but keeps 81% of its reconsideration, and still reasons worse (acc|finished 80.7→74.5). **Next: S1 on GSM8K** (~7 h, GPU 7), then optionally the marker-injection probe of the pivot hypothesis. The density/length confound remains open — three approaches failed.
+3. **The `cutoff_len` control** — load-bearing for M6a's non-monotonicity and M6b's margin over LIMO, and more so since M6c showed our understanding of the truncation mechanism is incomplete.
+4. **Rebuild the M6a mixtures on the corrected (v2) defense** — the non-monotonic finding currently rests on v1.
+5. **`Score(trace, student)`** (proposal §4.1) — only `epistemic_density` exists. Note M6b contraindicates `correctness` as a positive factor, and Allouah et al. (arXiv:2605.22737) give a concrete `distributional_alignment` via gradient alignment.
+6. **Defense API and a second defense**; then **loss masking** (§4.4).
 
 Full live record: `results/REPORT.md`.
 
