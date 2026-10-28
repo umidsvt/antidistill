@@ -31,8 +31,8 @@ stand and what comes next.
 | 4 | Level A on GSM8K | §9.3 | done | four RL recipes did not learn; self-training with the setup's prompt 4.9% (one seed, recipe failure); **few-shot self-training 34.3% (3 seeds): passes at level A** |
 | 5 | Setup 2, MATH variant, 3 seeds | §9.4 | done | U 15.0%, Solo B 14.9%, Solo C 17.3%; the 1,024-token cap makes the teacher (63%) a weaker solver than Qwen2.5-7B-Instruct (73%) |
 | 6 | Setup 3 pilot: hardest DeepMath problems | §10 | done | an open 7B reasoning model never solves only 10.3% of them; harder problems do not create the gap |
-| 7 | Option 4 pilot: MATH with the teacher at 8,192 tokens | §10.1 | U_long done; combinations running | teacher 79.0%; U_long 18.1% vs Solo C 18.5%: fails by the rule, because the student finishes 41% of its answers (31.4% right on those) |
-| 8 | Combination students for U_ℓ, setup 2 | §11 | seed 123: 5 of 8 done; seeds 124–125 started | mixing the attacker's and the teacher's solutions is best, 1–3 points above U and Solo, far below the margin |
+| 7 | Option 4 pilot: MATH with the teacher at 8,192 tokens | §10.1 | U_long done; combination students not started (need the authors' go-ahead) | teacher 79.0%; U_long 18.1% vs Solo C 18.5%: fails by the rule, because the student finishes 41% of its answers (31.4% right on those) |
+| 8 | Combination students for U_ℓ, setup 2 | §11 | seed 123: 5 of 8 done, 1 running, 2 waiting for GPU 6; seeds 124–125 not started | mixing the attacker's and the teacher's solutions is best, 1–3 points above U and Solo, far below the margin |
 | 9 | LIMO combination student (7B Solo + LIMO) | §11 | not started | needs 4 GPUs for about 20 hours |
 | 10 | Our own PoE / ADS defended runs | – | not started | only useful in a setup that passes |
 
@@ -41,10 +41,11 @@ stand and what comes next.
 | What | Script | GPUs | Log | Outputs |
 | --- | --- | --- | --- | --- |
 | combination students, seed 123 (MATH C mix running; GSM8K B seq and MATH C seq wait for GPU 6, which is held by an orphaned vLLM engine, PID 962535) | `scripts/42_combo_pool.sh`, jobs `outputs/setup2_combo/jobs_s123.txt` | 6, 7 | `logs/setup2_combo.log` | `outputs/setup2_combo/<ds>_<level>_<recipe>_s<seed>/result.json` |
-| combination students, seeds 124–125 (GSM8K C mix, MATH B mix) | same, jobs `jobs_s124_125.txt` | 2, 3 | `logs/setup2_combo_s124_125.log` | same |
-| pilot combination students with the long-budget teacher (B and C, mix then sequential) | `scripts/43_math_pilot_combo.sh` | 4, 5 | `logs/setup3_math_combo.log` | `outputs/setup3_math/scores/long{mix,seq}_{B,C}_8192.json` |
 
-Every queue waits for free GPU memory and retries once; finished jobs are skipped on restart. If a GPU stays occupied
+Prepared but not started (each needs the authors' go-ahead): seeds 124–125 of the combination students
+(`outputs/setup2_combo/jobs_s124_125.txt`, run with `scripts/42_combo_pool.sh`) and the pilot's combination students
+with the long-budget teacher (`scripts/43_math_pilot_combo.sh`). Every queue waits for free GPU memory and retries
+once; finished jobs are skipped on restart. If a GPU stays occupied
 after its job ended, look for an orphaned vLLM engine of our scripts (CLAUDE.md, "Start here").
 
 ## Next steps, in order

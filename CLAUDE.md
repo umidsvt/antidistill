@@ -19,7 +19,8 @@ for that LIMO pipeline and is still accurate for it.
 1. **The rule comes before the result.** Before an experiment runs, its m8 entry says what is run and what each outcome
    means. Record every deviation. Do not apply a pre-written fallback when the cause is a bug or a failed recipe;
    ask the authors (m8 §9.3 has an example).
-2. **Ask the authors** before long GPU runs and before changing any fixed rule.
+2. **Start nothing without an explicit go-ahead.** No job, queue or background process starts until the authors
+   say yes to it; a rule in m8 that names the next run is not a go-ahead. Ask before changing any fixed rule.
 3. **Never drop problems from a training pool.** Every pool keeps all its problems (LIMO: all 800); items a method
    cannot produce are salvaged or reported, not removed.
 4. **Shared machine** (dspl1, 8 × L40S 46 GB). GPUs 0 and 1 are reserved for others: use 2–7. Labmates run jobs at
