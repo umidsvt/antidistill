@@ -59,6 +59,9 @@ uv pip install --python "$INFER_PY" "sglang[all]" openai
 uv pip install --python "$INFER_PY" \
   sympy antlr4-python3-runtime word2number Pebble timeout-decorator latex2sympy2 \
   regex jinja2 "transformers>=4.55.2,<5" datasets tqdm python_dateutil
+# rapidfuzz: PART's lexical-similarity metric is RapidFuzz's partial_ratio_alignment (Ding et al.
+# 2025, §3.1). src/antidistill/defenses/part.py falls back to difflib without it.
+uv pip install --python "$INFER_PY" rapidfuzz
 
 "$INFER_PY" - <<'PY'
 import vllm, torch, transformers

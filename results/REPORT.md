@@ -2,7 +2,7 @@
 
 **Qwen2.5-7B · replication 2026-09-05 · first attack 2026-09-06 · defense pipeline corrected
 2026-09-09 · reconstruction attack 2026-09-12 · weaker attacker 2026-09-15 · marker stripping
-2026-09-18 · GSM8K 2026-09-23 · thirteen training runs, five benchmarks**
+2026-09-18 · GSM8K 2026-09-23 · PART 2026-10-04 · fourteen training runs, five benchmarks**
 
 **Part 1** reproduces the `Qwen2.5-7B` row of the proposal's §2.2 table, testing Kim et al.
 (arXiv:2603.15500): that stripping *epistemic verbalization* from otherwise-correct reasoning
@@ -34,11 +34,17 @@ the difficulty gradient crosses zero — restoring a difficulty-dependence claim
 artifact had forced us to retract. And epistemic density, the project's strongest predictor on hard
 problems (r = +0.940), **largely stops predicting on easy ones (r = +0.255)**.
 
-**Part 7** asks whether Kim et al.'s nine epistemic tokens are **causal or a proxy**, by deleting
-only those words from the best attack's traces and retraining. **Partial: it costs 7.0 pp**, landing
+**Part 7** asks whether nine epistemic marker words are **causal or a proxy**, by deleting only
+those words from the best attack's traces and retraining. The list shares six words with Kim et
+al.'s nine epistemic tokens, including `wait` and `maybe`. **Partial: it costs 7.0 pp**, landing
 65% of the way from the defense to the unstripped run. The student stops saying the words but keeps
 most of its reconsideration — and still reasons worse without them. On GSM8K the loss is **larger**
 (−10.2 pp), which argues against the pivot hypothesis the hard-suite result suggested.
+
+**Part 8** adds a second defense, **PART** (Ding et al. 2025 — not "Chen et al." as the proposal
+has it): self-talk rewritten as declarative prose and sub-conclusions moved ahead of their
+derivations, *keeping trace length*. **It defends as strongly as hindsight (50.5% vs 49.5%)** even
+though its traces are as long as LIMO's, so length alone does not carry LIMO's benefit.
 
 > **This document is the live record.** Headline numbers, the reasoning behind each design choice,
 > and every caveat that changes how a number should be read live here; per-milestone detail lives
@@ -187,9 +193,9 @@ no regeneration. See `CLAUDE.md` §1.
 
 ---
 
-## All fourteen conditions
+## All eighteen conditions
 
-One untrained baseline plus **thirteen separate full fine-tunes of `Qwen/Qwen2.5-7B`, each on exactly
+One untrained baseline plus **seventeen separate full fine-tunes of `Qwen/Qwen2.5-7B`, each on exactly
 800 problems**, using LIMO's default config verbatim — ZeRO-3, `cutoff_len 16384`, lr 5e-6, cosine, 15 epochs,
 **global batch 8, 1,500 steps**. Problem coverage, step count and compute are held fixed everywhere.
 **Only the traces differ**, so every contrast in this report is attributable to trace content alone.
@@ -204,6 +210,10 @@ One untrained baseline plus **thirteen separate full fine-tunes of `Qwen/Qwen2.5
 | **A1 style / A2 search / A3 solo** (32B) | traces re-derived by `DeepSeek-R1-Distill-Qwen-32B`, three attacker prompts | 4 | ~8 h each (4 GPU) |
 | **A1 style / A2 search / A3 solo** (7B) | the same three prompts, attacker downgraded to the **7B** distill | 5 | ~7.8 h each (4 GPU) |
 | **S1 marker-stripped** | 7B `solo`'s traces with **only the nine epistemic marker words deleted** | 7 | 10:50 (4 GPU) |
+| **PART** | LIMO traces with self-talk rewritten as statements and results moved first (Ding et al. 2025) | 8 | 8:05 (4 GPU) |
+| **PART, step 1 only** | PART's first rewrite only (self-talk to statements), nothing moved | 8 | — |
+| **re-voiced PART** | PART's solutions rewritten back into first-person thinking aloud by an instruction model | 9 | — |
+| **Style on PART** | PART's solutions rewritten with invented doubt and checks by an instruction model | 9 | 8:12 (4 GPU) |
 
 ### Complete results matrix
 
@@ -227,6 +237,10 @@ small benchmarks are 30–40 problems each, where one problem is 2.5–3.3 pp.
 | A2 search — 7B | 76.2% | 57.5% | 6.7% | 13.3% | **68.3%** | 88.4% |
 | **A3 solo — 7B (best)** | **77.0%** | 55.0% | 16.7% | 16.7% | **69.5%** | **88.6%** |
 | **S1 — markers deleted** | 69.6% | 47.5% | 16.7% | 10.0% | **62.5%** | 78.4% |
+| **PART (second defense)** | 55.2% | 50.0% | 6.7% | 16.7% | **50.5%** | 76.2% |
+| PART, step 1 only (ablation) | 50.4% | 40.0% | 16.7% | 10.0% | **46.0%** | 61.8% |
+| Re-voiced PART (attack) | 58.2% | 40.0% | 13.3% | 13.3% | **52.5%** | 74.8% |
+| **Style on PART (attack)** | 65.4% | 42.5% | 16.7% | 13.3% | **58.8%** | 84.2% |
 
 \* GSM8K is **fallback-graded** (last number in the response when no `\boxed{}` is present) and run at
 TP=1. Boxed-only grading is disqualifying there — base answers 277/500 problems in prose and scores
@@ -797,9 +811,13 @@ attack pool (7B `solo`) and delete the epistemic content in place, leaving every
 LaTeX spans are protected throughout, so mathematics is never cut. **Only S1 was trained** — it is the
 one level that changes almost nothing except the target vocabulary.
 
-**The nine markers** are the project's density lexicon, unchanged from Kim et al.: `wait`, `hmm`,
-`actually`, `maybe`, `perhaps`, `alternatively`, `i think`, `on second thought`,
-`let me reconsider`.
+**The nine markers** S1 deletes are the stripper's lexicon: `wait`, `hmm`, `actually`, `maybe`,
+`perhaps`, `alternatively`, `i think`, `on second thought`, `let me reconsider`. **This is not
+exactly Kim et al.'s list** (§4.2 of their paper; `scripts/31_epistemic_density.py`). Six words are
+shared, including the two most frequent, `wait` and `maybe`, but Kim et al.'s `seems`, `might` and
+`check` are replaced here by `i think`, `on second thought` and `let me reconsider`. S1 therefore
+tests a nine-word lexicon that overlaps Kim et al.'s on six words, not their nine exactly
+(corrected 2026-09-30).
 
 **What S1 holds fixed.** The training config is **byte-identical to `recon7b_solo.yaml` apart from
 the dataset path and `output_dir`** — same 800 problems, same 1,500 steps, same everything. So 7B
@@ -854,6 +872,263 @@ regulate something that pays off even on easy problems.
 
 This does **not** resolve the density/length confound (S1 does not move length), which remains the
 largest open threat to the report's density claims.
+
+---
+
+## Part 8 — a second defense: PART
+
+Design, gates and pre-registered rule: **`results/m4_part_design.md`**
+
+The first defense from the proposal's *structural* family (§3.2): **PART**, *"Information-Preserving
+Reformulation of Reasoning Traces for Antidistillation"* — **Ding, Cui, Dong, Zheng, Wei (2025),
+arXiv:2510.11545**. **The proposal attributes it to "Chen et al."; that is wrong** — probably a
+confusion with Xinghao Chen et al. (ACL Findings 2025), the first paper PART cites. No code was
+released, so it is implemented from the paper (`src/antidistill/defenses/part.py`).
+
+**What it does.** Each trace is cut into segments, and each segment is rewritten twice with the
+paper's prompts: self-talk becomes declarative ("Let me check" → "Checking"), then the most
+important sub-conclusions are moved *ahead* of their derivations. The final answer is untouched. The
+rationale: self-talk tokens are low-probability under the student and so dominate the SFT gradient
+while carrying little information; and a student cannot learn to state a conclusion before
+computing it.
+
+**Why it matters here.** Hindsight v2 traces average 484 tokens against LIMO's ~11k, so every
+hindsight contrast is confounded with length and truncation. **PART keeps the length** (it is
+designed to preserve the information), so LIMO vs PART is the first defense contrast in this study
+that carries the same termination tax on both sides.
+
+**Status.** Applied to the same 800 LIMO traces as hindsight v2; training config identical to
+hindsight v2's apart from the dataset. **The full 800-problem dataset was generated 2026-10-03 and passes every
+pre-set check** (1.01% of segments fell back; final answers 800/800 unchanged; 99.3% of numbers kept;
+88% of sentences matched, the paper's own figure; self-talk −94%; 93.6% of LIMO's length). The rewriter
+is Qwen2.5-32B-Instruct, standing in for the paper's GPT-4o. **One open issue:** the paper's step 2
+says to *move* each intermediate result ahead of its derivation, but ours mostly copies it — 64% of
+segments state a result twice (design doc §7c). **Decided 2026-10-03:** remove the word-for-word copies (4,074 removed, the
+hoisted copy kept; reworded summaries left as written; the unprocessed dataset is kept). All checks
+still pass. Training and evaluation are under way. **Pre-registered rule** (pooled 600): within 2.0 pp of LIMO (62.8%) =
+does not defend; within 2.0 pp of hindsight v2 (49.5%) = as strong as the behavioural defense;
+otherwise partial.
+
+### Result (2026-10-04): PART defends as strongly as hindsight
+
+| | MATH500 | AMC23 | AIME24 | AIME25 | **pooled (600)** | MATH500 finished | acc \| finished | GSM8K* |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| base | 55.0% | 40.0% | 20.0% | 6.7% | **49.8%** | 415/500 | 66.3% | 72.2% |
+| LIMO (no defense) | 69.0% | 55.0% | 20.0% | 13.3% | **62.8%** | 441/500 | 78.2% | 85.2% |
+| hindsight v2 | 56.8% | 27.5% | 3.3% | 3.3% | **49.5%** | 498/500 | 57.0% | 81.2% |
+| **PART** | 55.2% | 50.0% | 6.7% | 16.7% | **50.5%** | 411/500 | 67.2% | **76.2%** |
+
+\* fallback-graded.
+
+**Pre-registered verdict: PART is within 2.0 pp of hindsight v2 (50.5% vs 49.5%), i.e. as strong as the
+behavioural defense.** It removes 12.3 of LIMO's 13.0 pp over base, and on MATH500 costs 13.8 pp against
+LIMO, more than the paper's 9–12 pp for 7B students. On GSM8K it is the only defense that hurts relative
+to hindsight (76.2% vs 81.2%), though still above base.
+
+**Why it matters for the density/length question.** PART keeps 92.6% of LIMO's length and removes 94% of
+the self-talk, so it is the first condition in the study that is long but low in uncertainty wording. Its
+student lands at the defense level, not at LIMO's: **trace length alone does not carry LIMO's benefit.**
+Two caveats keep this from closing the question: PART changes two things (the wording and the order), and
+its step 2 added reworded summaries (§7c of the design doc). The step-1-only ablation separates them.
+
+**How the loss splits (MATH500, against LIMO).** About −9 pp is worse reasoning (accuracy among finished
+answers 67.2% vs 78.2%) and about −5 pp is failing to finish (411 vs 441 answers). The unfinished answers
+are mostly loops: in 61 of 89 the student gives an answer and then repeats the system prompt, the question
+and the answer until it hits the length limit (LIMO student: 19 of 59). If an answer given before such a
+loop were counted, the pooled scores would be LIMO 69.2%, PART 57.0%, hindsight 49.7%: PART would then
+remove about 63% of LIMO's advantage rather than all of it. The LIMO student shows the same failure to
+stop, so it belongs to the training recipe (the 16k cutoff), not to PART alone; PART makes it worse.
+
+### Step 1 alone (2026-10-05): the wording change carries the whole effect
+
+The same 800 traces with self-talk rewritten but **nothing reordered** (`limo_part_step1`), same recipe.
+
+| | pooled (600) | MATH500 finished | acc \| finished | unfinished (loops) | counting answers given before a loop | GSM8K* |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIMO | 62.8% | 441/500 | 78.2% | 82 (19) | 69.2% | 85.2% |
+| PART (both steps) | 50.5% | 411/500 | 67.2% | 119 (66) | 57.0% | 76.2% |
+| **PART step 1 only** | **46.0%** | 377/500 | 66.8% | 149 (86) | **61.0%** | **61.8%** |
+| hindsight v2 | 49.5% | 498/500 | 57.0% | 2 (2) | 49.7% | 81.2% |
+
+**Reordering is not what makes PART work.** Rewriting the self-talk alone already drops the student to
+the defended level (46.0%), and accuracy among finished MATH500 answers is the same with or without
+reordering (66.8% vs 67.2%, both near the untrained model's 66.3%). That is the loss in reasoning quality,
+and step 1 accounts for all of it.
+
+**The rest is a failure to stop.** The step-1-only student loops far more: on MATH500, 70 of its 78 loops
+start after it has already given an answer, 56 of them by repeating the system prompt; on GSM8K, 176 of 500
+answers never finish (PART 66, LIMO 43). Counting answers given before a loop reverses the order of the two
+PART variants (step 1 only 61.0%, PART 57.0%). Why removing self-talk makes the student worse at stopping,
+and why the reordering step partly undoes it, is not explained yet. It is not a data artifact we could find:
+both datasets have identical final-answer sections and the same 17 outputs containing the system-prompt text
+(inherited from LIMO, which has 21).
+
+**Consequence for the attack plan:** the target is step 1. The re-voicing attack (rewrite PART's statements
+back into thinking-aloud form with an ordinary instruction model) is the one to build.
+
+---
+
+## Part 9 — attacking PART: re-voicing does not work; inventing doubt recovers two-thirds
+
+Design, prompt revisions and decision rule: **`results/m6e_revoice_design.md`**
+
+Since PART's effect comes from step 1 (rewriting self-talk as statements), the first attack reverses it:
+an **ordinary instruction model** (Qwen2.5-32B-Instruct, no reasoning mode) rewrites each piece of the
+800 PART solutions back into first-person thinking aloud. The prompt was revised twice on a 20-problem
+pilot before any training; the third version restored about half of LIMO's self-talk (the 50% check
+was missed by 2 points and waived by decision, recorded in the design doc).
+
+| | pooled (600) | MATH500 finished | acc \| finished | unfinished (loops) | counting answers before a loop | GSM8K* |
+| --- | --- | --- | --- | --- | --- | --- |
+| LIMO | 62.8% | 441/500 | 78.2% | 82 (19) | 69.2% | 85.2% |
+| **re-voiced PART** | **52.5%** | 432/500 | 67.4% | 92 (45) | 58.7% | 74.8% |
+| PART | 50.5% | 411/500 | 67.2% | 119 (66) | 57.0% | 76.2% |
+
+**Pre-registered verdict: re-voicing does not recover what PART removed** (52.5% vs 50.5%, exactly at the
+2.0 pp edge; 16% of the PART-to-LIMO gap). The small gain is finishing more answers, not better reasoning:
+accuracy among finished answers is unchanged (67.4% vs 67.2%).
+
+**Why.** The attack restored the first-person voice (self-talk 1.75 → 14.29 per 1k words, 47% of LIMO's)
+but **not the uncertainty words**: Kim et al.'s nine stayed at 15.9 per 1k words (PART 15.7, LIMO 39.0),
+and the trained student uses them at 4.7 per 1k words against the LIMO student's 28.3. First-person
+narration on its own does nothing. What PART's step 1 removes that matters is the doubt and re-checking:
+it collapses each checking episode into its conclusion (problem 450: *"Wait, hold on, no… Let me check."*
+→ *"The total number of people remains six."*), so there is nothing left for a rewriter to restore.
+
+### Style on PART: inventing doubt and checks recovers 68% of the gap
+
+Design, prompt revisions, data checks and decision rule: **`results/m6f_style_part_design.md`**
+
+Same attacker (PART's 800 solutions and Qwen2.5-32B-Instruct, never LIMO's text), but the prompt asks the
+model to **add** doubt and checking in every paragraph: wonder whether an approach is right before a step,
+question a result after it, show the doubt before a question is settled. The prompt was revised twice on a
+20-problem pilot (the limit set in advance); the full data restores uncertainty words from 11.0 to 23.2 per
+1k words (LIMO 35.6). One of the five data checks flagged one problem of 800; the final answer there is
+unchanged and the flag was waived by decision (2026-10-13, recorded in the design doc).
+
+| student trained on | pooled (600) | MATH500 finished | acc \| finished | uncertainty words in the training data /1kw | uncertainty words the student writes /1kw |
+| --- | --- | --- | --- | --- | --- |
+| LIMO | 62.8% | 441/500 | 78.2% | 35.6 | 27.6 |
+| **Style on PART** | **58.8%** | **448/500** | **73.0%** | 23.2 | **22.3** |
+| re-voiced PART | 52.5% | 432/500 | 67.4% | 11.1 | 4.6 |
+| PART | 50.5% | 411/500 | 67.2% | 11.0 | 7.1 |
+
+(The last column counts the S1 list in the student's MATH500 answers; recounted here, so it reads 27.6 and
+4.6 where the text above gives 28.3 and 4.7.) Per benchmark: MATH500 65.4%, AMC23 42.5%, AIME24 16.7%,
+AIME25 13.3%. **GSM8K 84.2%** (PART 76.2%, LIMO 85.2%): there the attack recovers 89% of the gap.
+
+**Pre-registered verdict: partial — Style on PART recovers 68% of the PART-to-LIMO gap** (58.8% against
+PART's 50.5% and LIMO's 62.8%; the rule's bands were within 2.0 pp of PART for "does not recover" and
+60.8% or more for "fully defeats").
+
+**What it shows.** Unlike re-voicing, the gain is in reasoning, not only in finishing: accuracy among
+finished MATH500 answers rises from 67.2% to 73.0% (LIMO 78.2%), and the student finishes more often than
+LIMO's. The student also writes the uncertainty words again (22.3 per 1k words against PART's 7.1). With
+re-voicing as the control, the difference between the two attacks is the doubt and checking, not the
+first-person voice. An attacker with only an instruction model who thinks to invent doubt gets two-thirds
+of the way back from PART.
+
+**Caveats.** The rewriter is the same model PART used to defend (re-voice §8). The invented checks were
+not compared with LIMO's for placement yet (design §8). The pilot was used to revise the prompt twice, so
+the final prompt was chosen on 20 of the 800 problems.
+
+**Next attack on PART:** mixing in public LIMO solutions, which is cleaner against PART than against
+hindsight because the two are the same length.
+
+---
+
+## Part 10 — where Solo's advantage sits: easy and medium problems only
+
+Added 2026-10-12. No new runs; every number is recomputed from the stored per-problem results.
+
+**The question.** Solo (the attacker's own reasoning model solves the 800 problems; the defender's
+solutions and answers are not used) gives the best student, above LIMO itself. Is that because the
+evaluation is easy?
+
+**What is not the reason: the training problems are not easy for the attacker.** The 7B attacker reaches
+LIMO's answer on 37% of the 800 problems and the 32B on 49% (Parts 4 and 5). The student trained on
+solutions that are wrong most of the time is still the best one.
+
+**MATH500 split by the dataset's own difficulty level** (366 problems at levels 1–4, 134 at level 5):
+
+| student | levels 1–4 | level 5 | level 5, finished answers only | AMC23 + AIME24 + AIME25 (100) |
+| --- | --- | --- | --- | --- |
+| no training | 62.6% | 34.3% | 39.3% (117 finished) | 24 |
+| LIMO | 73.2% | **57.5%** | **68.1%** (113) | 32 |
+| hindsight v2 | 65.8% | 32.1% | 32.1% (134) | 13 |
+| PART | 61.7% | 37.3% | 47.6% (105) | 27 |
+| 32B Style | 80.9% | 43.3% | 48.7% (119) | 31 |
+| 32B Search | 77.3% | 54.5% | 61.3% (119) | 30 |
+| 32B Solo | 80.3% | **57.5%** | 65.8% (117) | 34 |
+| 7B Style | 76.5% | 46.3% | 51.7% (120) | 23 |
+| 7B Search | 85.2% | 51.5% | 57.5% (120) | 29 |
+| 7B Solo | 83.9% | **58.2%** | 63.9% (122) | 32 |
+
+Paired against LIMO on the same problems (problems only the attack solves / only LIMO solves, exact test):
+
+| attack | levels 1–4 | level 5 |
+| --- | --- | --- |
+| 7B Solo | +64 / −25, p < 0.001 | +22 / −21, p = 1.0 |
+| 32B Solo | +57 / −31, p = 0.007 | +22 / −22, p = 1.0 |
+| 32B Style | +55 / −27, p = 0.003 | **+13 / −32, p = 0.007** |
+| 7B Style | +55 / −43, p = 0.27 | **+15 / −30, p = 0.04** |
+
+**Reading.**
+
+- **All of Solo's lead over LIMO comes from levels 1–4** (+39 of the +40 problems for 7B Solo). At level 5
+  and on the 100 competition problems Solo and LIMO are tied, and among finished level-5 answers LIMO's
+  student is slightly ahead (68.1% against 63.9% and 65.8%; not significant).
+- **Invented doubt (Style) works on levels 1–4 and fails at level 5**: above LIMO on the first, 11–14 pp
+  below it on the second. This is the one place in our data where the quality of the reasoning in the
+  training solutions, and not only its presence, changes the result.
+- **Both defenses remove the whole gain at level 5** (hindsight 32.1%, PART 37.3%, no training 34.3%).
+
+So the "the defender's solutions are not needed" result is established on problems the untrained student
+already solves 63% of the time, and it weakens to a tie exactly where the problems get hard. It does not
+reverse in this data: level 5 is 134 problems, about ±4 pp, so a tie is all that can be said. A harder
+evaluation set is needed to tell a tie from a reversal. The splits were chosen after seeing the totals, so
+this is a lead to test, not a result.
+
+**The test, on a hard set chosen in advance:** the same students on OlympiadBench (675 olympiad
+problems), rule fixed before any result — `results/m7_hard_eval_design.md`. Started 2026-10-13.
+
+### Result on OlympiadBench (2026-10-13): a tie
+
+| student | correct of 675 | accuracy | finished | accuracy among finished | against LIMO: only this student / only LIMO |
+| --- | --- | --- | --- | --- | --- |
+| no training | 201 | 29.8% | 598 | 33.6% | +69 / −125, p < 0.001 |
+| LIMO | 257 | **38.1%** | 565 | 45.5% | — |
+| 7B Solo | 261 | **38.7%** | 582 | 44.8% | +69 / −65, p = 0.80 |
+| 32B Solo | 261 | **38.7%** | 574 | 45.5% | +81 / −77, p = 0.81 |
+| 32B Style | 251 | 37.2% | 597 | 42.0% | +80 / −86, p = 0.70 |
+| hindsight v2 | 164 | 24.3% | 668 | 24.6% | +53 / −146, p < 0.001 |
+| PART | 204 | 30.2% | 536 | 38.1% | +59 / −112, p < 0.001 |
+| 7B Search | 275 | **40.7%** | 617 | 44.6% | +78 / −60, p = 0.15 |
+
+**Verdict by the rule fixed in advance: no difference shown at this size.** This is the outcome predicted
+before the run. Solo's lead over LIMO, 6.7 points on the pooled 600, is 0.6 points on the hard set; LIMO is
+not ahead either, in accuracy or among finished answers. Training on either adds 8 to 9 points over no
+training. So the easy evaluation explains Solo's *lead*, but a harder evaluation does not show that the
+teacher's solutions are *needed*: a student trained on the attacker's own solutions, which are wrong on
+51–63% of the training problems, matches the student trained on the teacher's correct ones at every
+difficulty we can measure. What remains untested is a harder *training* setting (m7 §4).
+
+Added 2026-10-15: **32B Style ties LIMO too** (37.2%, p = 0.70; 42.0% among finished against 45.5%), so
+the prediction that invented doubt would fall behind on hard problems, made from MATH500 level 5, does not
+hold here. **Hindsight v2 falls below the untrained model** (24.3% against 29.8%): its student finishes
+668 of 675 answers but is right on only 24.6% of them, so on hard problems the defense does more than
+remove the gain.
+
+Added 2026-10-16, all eight students done: **PART** is level with the untrained model (30.2% against
+29.8%) and below LIMO (p < 0.001), so both defenses remove the whole gain on hard problems. **7B Search**,
+the attack that uses the defended solutions plus a hint, is the highest at 40.7%, 2.6 points above LIMO
+(p = 0.15, not significant). No attack is worse than LIMO on the hard set; no student is better than
+LIMO by the test.
+
+The 32B Solo and hindsight v2 runs wrote complete results (675 rows each) and then their model servers did
+not shut down; the first was stopped by hand after 17 minutes, the second only after **27 hours** of idle
+GPUs. `scripts/26_eval_exit_watchdog.sh` now stops a server automatically 5 minutes after its result file
+is written.
 
 ---
 
@@ -916,6 +1191,7 @@ Part 2 is the cheapest outstanding experiment and should go first.
 | `results/gsm8k_results.md` | **GSM8K: the defense helps on easy problems; density stops predicting** |
 | `results/m6d_strip_s1.md` | **marker stripping: the nine tokens are partly causal (7.0 pp)** |
 | `results/decoupling_design.md` | two ruled-out approaches to the density/length confound; the stripping procedure |
+| `results/m4_part_design.md` | **PART defense: paper check, implementation plan, gates, pre-registered rule** |
 | `results/m6b_reconstruction_design.md` | its design and pre-registered predictions; the defects the pilot caught |
 | `results/m6b_prompts.md` | the three reconstruction prompts verbatim, and how generation runs |
 | `results/hindsight_versions.md` | v1 vs v2 defended datasets: what differs, where everything lives |

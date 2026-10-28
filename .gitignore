@@ -42,3 +42,10 @@ __pycache__/
 
 # Host-specific interconnect settings — regenerate per machine with scripts/check_host.sh
 .host_profile
+
+# Upstream clones with their own git history: recreated by scripts/setup_third_party.sh; our edits to
+# distillation-game ship as third_party/ext/distillation-game.patch
+third_party/ext/*/
+
+# Intermediate generation shards (tens of MB each, regenerable); see README "Data not in git"
+*.segments.jsonl

@@ -115,5 +115,41 @@
       "response": "output",
       "system": "system"
     }
+  },
+  "limo_part": {
+    "file_name": "defended/limo_part.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "limo_part_step1": {
+    "file_name": "defended/limo_part_step1.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "revoice_part": {
+    "file_name": "curated/revoice_part.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
+  },
+  "style_part": {
+    "file_name": "curated/style_part.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output",
+      "system": "system"
+    }
   }
 }

@@ -16,6 +16,14 @@
 # Usage:
 #   scripts/40_serve_teacher.sh              # TP=4 on GPUs 0-3, port 8001
 #   GPUS=4,5,6,7 PORT=8002 scripts/40_serve_teacher.sh
+#
+# Overrides for serving a model other than the R1 teacher (e.g. the PART rewriter, see
+# scripts/45_generate_part.sh). Defaults reproduce the teacher setup exactly:
+#   SERVED_NAME       name clients pass as `model` (default: $MODEL; set it when MODEL is a path)
+#   REASONING_PARSER  default deepseek_r1; `none` for a non-reasoning model -- the R1 parser
+#                     assumes generation starts inside <think>, so it would file a plain model's
+#                     entire answer under reasoning_content and return an empty .content
+#   MAX_MODEL_LEN     default 65536
 set -euo pipefail
 cd "$(dirname "$0")/.."
 REPO="$PWD"
@@ -23,6 +31,11 @@ REPO="$PWD"
 MODEL="${MODEL:-deepseek-ai/DeepSeek-R1-Distill-Qwen-32B}"
 GPUS="${GPUS:-0,1,2,3}"
 PORT="${PORT:-8001}"
+SERVED_NAME="${SERVED_NAME:-$MODEL}"
+REASONING_PARSER="${REASONING_PARSER:-deepseek_r1}"
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-65536}"
+PARSER_FLAG="--reasoning-parser $REASONING_PARSER"
+[[ "$REASONING_PARSER" == "none" ]] && PARSER_FLAG=""
 TP=$(awk -F',' '{print NF}' <<<"$GPUS")
 
 mkdir -p logs
@@ -51,17 +64,18 @@ fi
 CUDA_VISIBLE_DEVICES="$GPUS" VLLM_ATTENTION_BACKEND=FLASH_ATTN \
   "$REPO/.venv-infer/bin/python" -m vllm.entrypoints.openai.api_server \
   --model "$MODEL" \
-  --served-model-name "$MODEL" \
+  --served-model-name "$SERVED_NAME" \
   --tensor-parallel-size "$TP" \
   --gpu-memory-utilization 0.90 \
-  --max-model-len 65536 \
+  --max-model-len "$MAX_MODEL_LEN" \
   --port "$PORT" \
   --host 127.0.0.1 \
   --trust-remote-code \
-  --reasoning-parser deepseek_r1 \
+  ${PARSER_FLAG} \
   ${CUSTOM_AR_FLAG} \
   > "$LOG" 2>&1 &
 
+echo $! > "$REPO/logs/teacher_server_${PORT}.pid"     # lets wrapper scripts stop it
 echo "server pid $! — waiting for readiness ..."
 for i in $(seq 1 120); do
   if curl -sf "http://127.0.0.1:${PORT}/v1/models" >/dev/null 2>&1; then

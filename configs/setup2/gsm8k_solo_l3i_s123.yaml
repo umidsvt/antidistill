@@ -1,0 +1,76 @@
+# Setup 2 (results/m8_audit_design.md §8.5): the GSM8K setup shared by ADS, PoE, trace rewriting, DOGe and TARS,
+# run with the Distillation Game code (third_party/ext/distillation-game, two documented patches).
+# Identical to its configs/gsm8k.yaml except: the 'standard' teacher is on and ADS/PoE are off (U and Solo need
+# only plain sampling), passive ('naive') students only, the student is the ungated unsloth mirror of
+# Llama-3.2-3B (same weights), and the output folder. Seeds 123-125 also reshuffle the train/holdout split,
+# as in the paper's 3-seed protocol.
+# Solo, ladder level B (m8 §9.3): the student's own instruction-tuned version, Llama-3.2-3B-Instruct
+# holdout_size 64 (paper: 2246): the holdout traces feed only ADS and the adaptive student, neither used here;
+# the train split is the first 5238 problems after the seeded shuffle either way, so it is unchanged.
+# generation.batch_size 128 (paper: 240): at 240 the untrained 3B student, which never stops, ran out of memory
+# on our 46 GB GPUs (2026-10-20). Batch size changes speed, not the sampled answers' distribution.
+artifacts:
+  save_full_text_traces: false
+  save_inspection_samples: 4
+  save_prompt_dictionary: true
+data:
+  dataset_name: gsm8k
+  holdout_size: 64
+  materialize_splits: true
+  test_size: 1319
+  train_size: 5238
+distill:
+  beta_s_values:
+  - 0.5
+  gradient_accumulation_steps: 4
+  holdout_grad_batch_size: 6
+  lora_alpha: 128
+  lora_dropout: 0.0
+  lora_r: 128
+  lr: 5e-4
+  lr_scheduler_type: cosine
+  max_grad_norm: 1.0
+  max_length: 2048
+  num_epochs: 3
+  penalty_transform: exp
+  per_device_train_batch_size: 6
+  save_final_model: false
+  student_modes:
+  - naive
+  trace_weights_fd_batch_size: 12
+  warmup_ratio: 0.03
+  weight_decay: 0.1
+generation:
+  answer_force: true
+  answer_force_max_new_tokens: 32
+  answer_force_suffix: '
+
+
+    **Final Answer**
+
+    \[\boxed{'
+  batch_size: 128
+  eps: 0.01
+  greedy: false
+  max_new_tokens: 1024
+  max_prompt_tokens: 512
+  temperature: 0.6
+  top_p: 0.95
+model:
+  attn_implementation: flash_attention_2
+  proxy_student: Qwen/Qwen2.5-3B
+  student: unsloth/Llama-3.2-3B
+  student_tokenizer: unsloth/Llama-3.2-3B-Instruct
+  teacher: unsloth/Llama-3.2-3B-Instruct
+  tokenizer: null
+  torch_dtype: bfloat16
+run:
+  output_dir: outputs/setup2
+  run_name: gsm8k_solo_l3i_s123
+  save_config_snapshot: true
+  seed: 123
+teachers:
+  antidistillation_lams: []
+  poe_gammas: []
+  standard: true
+  strategic_beta_teachers: []

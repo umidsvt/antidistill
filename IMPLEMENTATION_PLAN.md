@@ -1,6 +1,85 @@
-# Implementation Plan — Adaptive Attacks on Reasoning Distillation Defenses
+# Implementation Plan
 
-**Status (2026-09-10): attacking the hindsight defense.**
+**Status: 2026-10-28.** Part I is the current plan: the audit of anti-distillation evaluation setups. Part II is the
+original plan of September 2026 (replication and attacks), kept because it documents the LIMO pipeline the audit still
+uses. For any number or decision rule, `results/m8_audit_design.md` (m8) is the source; this file says where things
+stand and what comes next.
+
+# Part I — the audit (current)
+
+## Direction
+
+- **Advisor meeting, 2026-10-20.** Solo and RL are an audit of the setups the field uses to evaluate anti-distillation
+  defenses. The contribution is the checks a defense setup must pass (Solo and RL clearly below the student trained on
+  undefended traces, and more), applied to several datasets, plus a setup that passes. Reasoning: m8 §1 and §8.
+- **Paper.** *Is There Anything to Protect? Validity Checks for Evaluating Anti-Distillation Defenses of Reasoning
+  Models*, in the private repo https://github.com/ceferisbarov/antidistillation-overleaf, folder `icml2027_audit/`
+  (11 pages, ICML-like layout, "–" for missing results). The co-author's draft of the earlier narrative is in
+  `icml2027/` of the same repo; do not edit it.
+- **Fixed decisions.** Necessity margin: U_ℓ above R_ℓ by more than the 95% interval over 3 seeds and by at least a
+  quarter of U_ℓ's gain over the untrained student (m8 §7). The attacker's model: the strongest open model no larger
+  than the teacher. RL and self-training are rewarded by the teacher's released answers, not ground truth. Attacker
+  ladder A–D (m8 §9.3). Same attacker resources in U_ℓ, A_ℓ and R_ℓ (m8 §11, 2026-10-27, raised by a co-author).
+
+## Where each experiment stands
+
+| # | Experiment | m8 | Status | Result |
+| --- | --- | --- | --- | --- |
+| 1 | Small students (1.5B, 3B) on LIMO | §9.2 | done | 3B fails headroom (+1.3); 1.5B is driven by finishing (defended 27.8% > undefended 10.5%) |
+| 2 | Setup 1: LIMO, Qwen2.5-7B, 3 seeds of U and Solo | §9.5 | done | U 56.5%, Solo 66.2%, Solo ahead on every seed; headroom not shown (+13.0, +8.7, −1.6) |
+| 3 | Setup 2: GSM8K, U, Solo B, Solo C, 3 seeds | §9.1, §9.3 | done | U 59.0%, Solo B 59.4%, Solo C 59.8% |
+| 4 | Level A on GSM8K | §9.3 | done | four RL recipes did not learn; self-training with the setup's prompt 4.9% (one seed, recipe failure); **few-shot self-training 34.3% (3 seeds): passes at level A** |
+| 5 | Setup 2, MATH variant, 3 seeds | §9.4 | done | U 15.0%, Solo B 14.9%, Solo C 17.3%; the 1,024-token cap makes the teacher (63%) a weaker solver than Qwen2.5-7B-Instruct (73%) |
+| 6 | Setup 3 pilot: hardest DeepMath problems | §10 | done | an open 7B reasoning model never solves only 10.3% of them; harder problems do not create the gap |
+| 7 | Option 4 pilot: MATH with the teacher at 8,192 tokens | §10.1 | U_long done; combinations running | teacher 79.0%; U_long 18.1% vs Solo C 18.5%: fails by the rule, because the student finishes 41% of its answers (31.4% right on those) |
+| 8 | Combination students for U_ℓ, setup 2 | §11 | seed 123: 5 of 8 done; seeds 124–125 started | mixing the attacker's and the teacher's solutions is best, 1–3 points above U and Solo, far below the margin |
+| 9 | LIMO combination student (7B Solo + LIMO) | §11 | not started | needs 4 GPUs for about 20 hours |
+| 10 | Our own PoE / ADS defended runs | – | not started | only useful in a setup that passes |
+
+## Running now (2026-10-28 07:00, user umid on dspl1)
+
+| What | Script | GPUs | Log | Outputs |
+| --- | --- | --- | --- | --- |
+| combination students, seed 123 (MATH C mix running; GSM8K B seq and MATH C seq wait for GPU 6, which is held by an orphaned vLLM engine, PID 962535) | `scripts/42_combo_pool.sh`, jobs `outputs/setup2_combo/jobs_s123.txt` | 6, 7 | `logs/setup2_combo.log` | `outputs/setup2_combo/<ds>_<level>_<recipe>_s<seed>/result.json` |
+| combination students, seeds 124–125 (GSM8K C mix, MATH B mix) | same, jobs `jobs_s124_125.txt` | 2, 3 | `logs/setup2_combo_s124_125.log` | same |
+| pilot combination students with the long-budget teacher (B and C, mix then sequential) | `scripts/43_math_pilot_combo.sh` | 4, 5 | `logs/setup3_math_combo.log` | `outputs/setup3_math/scores/long{mix,seq}_{B,C}_8192.json` |
+
+Every queue waits for free GPU memory and retries once; finished jobs are skipped on restart. If a GPU stays occupied
+after its job ended, look for an orphaned vLLM engine of our scripts (CLAUDE.md, "Start here").
+
+## Next steps, in order
+
+1. **Seed-123 combinations finished:** for GSM8K B and MATH C, pick the better recipe (mix or sequential) and queue it
+   for seeds 124–125 (a job file like `outputs/setup2_combo/jobs_s124_125.txt`). With 3 seeds, apply the §11 test per
+   setup and level; record it in m8 §11 and fill the paper's GSM8K and MATH tables and the protection table.
+2. **Pilot combinations finished (§10.1, §11):** if one passes at level B or C on seed 123, run seeds 124–125;
+   otherwise the MATH setup fails necessity even with a full-budget teacher. The finishing problem may be fixable
+   (longer scoring limit, or the teacher at 4,096 tokens); that is an authors' decision, written in m8 before running.
+3. **LIMO combination student** (§11): 7B Solo + LIMO, mix, seed 42, on 4 GPUs; more seeds only if it beats Solo by
+   the margin.
+4. **Level A on MATH:** few-shot self-training needs MATH worked examples (not designed yet).
+5. **A setup that passes** (the paper's contribution 6, still open): so far only GSM8K at level A.
+6. **Our own PoE / ADS runs** in a setup that passes, for protection scores (A_ℓ).
+7. **Paper:** fill the "–" cells; check citations marked `% note: CHECK`; consider the ICML style files of `icml2027/`.
+
+## Open decisions (for the authors)
+
+- Is a quarter of U_ℓ's gain the right margin when the gain is large (15.6 points on GSM8K)? Raw differences are
+  always reported.
+- What to do about the finishing problem in the MATH pilot (§10.1).
+- Does "passes at level A only" count as the setup that passes?
+
+## How to pick up the work
+
+1. Read `CLAUDE.md` ("Start here": rules for this shared machine and this project), then m8 §8, §9.3, §10.1 and §11.
+2. Check what is running: the table above, the logs it names, and `nvidia-smi`.
+3. Before a new experiment, write in m8 what is run and what each outcome means, and get the authors' OK for
+   GPU-heavy runs.
+4. After a result, record it in m8 (numbers and the verdict by the rule), then in the paper.
+
+# Part II — the original plan (September 2026)
+
+**Status as of 2026-09-10 (historical): attacking the hindsight defense.**
 
 **Done.** G1 replication reproduces both of Kim et al.'s claims (LIMO +13.0 pp pooled over 600 problems vs their +13.4). The defended dataset was then found to be **generated incorrectly** — Kim et al.'s script harvests the teacher's scratchpad along with its answer — and regenerating it correctly makes the defense much stronger: the corrected defended student transfers **nothing** (49.5% vs an untrained 49.8%) and lands **exactly** on the published AIME24 cell (1/30). The first attack, §4.3 *supplementation*, defeats the (v1) defense at 50% epistemic traces but **backfires below a threshold**.
 
@@ -15,7 +94,7 @@
 3. **The `cutoff_len` control** — load-bearing for M6a's non-monotonicity and M6b's margin over LIMO, and more so since M6c showed our understanding of the truncation mechanism is incomplete.
 4. **Rebuild the M6a mixtures on the corrected (v2) defense** — the non-monotonic finding currently rests on v1.
 5. **`Score(trace, student)`** (proposal §4.1) — only `epistemic_density` exists. Note M6b contraindicates `correctness` as a positive factor, and Allouah et al. (arXiv:2605.22737) give a concrete `distributional_alignment` via gradient alignment.
-6. **Defense API and a second defense**; then **loss masking** (§4.4).
+6. **Defense API and a second defense** — **PART implemented 2026-09-30** (Ding et al. 2025, arXiv:2510.11545; the proposal's "Chen et al." attribution is wrong), behind the new `Defense` protocol; plan, gates and pre-registered rule in `results/m4_part_design.md`. **Blocked only on downloading the rewriter** (Qwen2.5-32B-Instruct, ~65 GB, to the root disk); then pilot → full generation → `scripts/22_part_run.sh`. PoE is being implemented by a collaborator. Then **loss masking** (§4.4).
 
 Full live record: `results/REPORT.md`.
 
@@ -356,8 +435,12 @@ Ordered by cost-to-signal ratio, cheapest first.
 - [x] **M6b — Epistemic reconstruction attack.** *Complete 2026-09-12 — `results/m6b_reconstruction.md`.* **Defense bypassed: style 64.2% / search 64.3% / solo 67.5% vs defended 49.5% and undefended LIMO 62.8%.** The `solo` control wins, so the defense is *irrelevant* rather than broken. Trace correctness inverted as a predictor (49%-correct pool beat the 89%-correct one). The margin over LIMO is termination, not reasoning — a `cutoff_len` confound. Three 800-trace pools: `style` (fabricated doubt, scratchpad suppressed), `search` (the model's own `reasoning_content`, defended solution as hint), `solo` (**the control** — attacker's model alone). Separates H1 "verbalization is behaviour" from H2 "verbalization is information about *where* to doubt". **Already reported by generation alone: the attacker's model unaided reaches LIMO's answer 44% of the time; with the defended trace as a hint, 87%** — the defended traces supply correctness the attacker cannot. Design and the defects the pilot caught: `results/m6b_reconstruction_design.md`; prompts: `results/m6b_prompts.md`.
 - [x] **M6c — Weaker-attacker replication.** *Complete 2026-09-15 — `results/m6c_weaker_attacker.md`.* 7B attacker beats the 32B on both real-doubt conditions; `solo` control replicates; `7B solo` out-reasons the undefended ceiling on both factors (477/500 finished, 80.7% acc|fin vs LIMO's 441/500, 78.2%). `style` degrades sharply (60.8%) — fabricating doubt is capability-dependent, harvesting it is not. **Corrects M6a's termination mechanism.**
 - [ ] **M6a-v2 — rebuild the supplementation mixtures on the corrected defense.** The three mixtures were built from the v1 pool, so Part 2 of the report measures the attack against the *weaker* defense. With v2 the gap to close widens from 6.3 pp to 13.3 pp. **The non-monotonic mix10 finding is specifically at risk**: it was defined by mix10 (52.2%) falling below hindsight (56.5%), and v2 hindsight is 49.5% — already below mix10. Three training runs; no regeneration needed.
-- [ ] **M4 — Defense API.** `hindsight` refactored behind `Defense`; one additional defense (`part`) implemented and evaluated.
+- [x] **M4 — Defense API and PART.** `Defense` protocol (`src/antidistill/defenses/base.py`) and `part` (Ding et al. 2025) implemented, generated and evaluated: PART drops the student to 50.5% (REPORT Part 8); re-voicing does not undo it, inventing doubt recovers two-thirds (Part 9). Design: `results/m4_part_design.md`, `m6e_revoice_design.md`, `m6f_style_part_design.md`. `hindsight` not yet moved behind `Defense`.
 - [ ] **M5 — Score function (still queued).** `Score(trace, student) = correctness x epistemic_density x distributional_alignment x difficulty_match`. All four components implemented and independently calibrated; alignment separates Qwen2.5-7B from Qwen2.5-Math-7B. **M6a constrains this:** `epistemic_density` cannot be a simple monotone factor — it must interact with trace length, or the scorer will assemble a mix10-like pool and degrade the student.
 - [ ] **M6 — Curated attack.** Loss masking evaluated; curated-SFT beats random-800 at equal budget — and beats the mix50 baseline M6a established.
+
+- [x] **M6d — Marker stripping (S1).** Deleting the nine markers costs 7.0 pp (REPORT Part 7, `results/m6d_strip_s1.md`).
+- [x] **M7 — A harder evaluation.** *Complete 2026-10-16.* On OlympiadBench LIMO and Solo tie; Solo's lead sits on easy and medium MATH500 problems (REPORT Part 10, `results/m7_hard_eval_design.md`).
+- [ ] **M8 — The audit.** Superseded this plan from 2026-10-20; see Part I and `results/m8_audit_design.md`.
 
 **Estimated wall-clock to M3:** 2–3 days, dominated by two SFT runs (4–8 h each) and hindsight generation (6–16 h), which overlap.

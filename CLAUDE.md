@@ -1,4 +1,63 @@
-# CLAUDE.md — running this pipeline with a different student model
+# CLAUDE.md — guide for coding agents
+
+## Start here (state of 2026-10-28)
+
+This repository is the research code for an **audit of the setups used to evaluate anti-distillation defenses**
+(paper draft: private repo https://github.com/ceferisbarov/antidistillation-overleaf, folder `icml2027_audit/`). It
+grew out of a replication of Kim et al. and attacks on their defense; Part 2 of this file, below, is the original guide
+for that LIMO pipeline and is still accurate for it.
+
+**Read in this order.**
+1. `README.md`: what the project is, the results so far, layout, machine setup, data not in git.
+2. `IMPLEMENTATION_PLAN.md`, Part I: where each experiment stands, what is running, next steps, open decisions.
+3. `results/m8_audit_design.md` (m8): the live design record. Definitions (§8, and §11, which replaces §8.3), the
+   attacker ladder (§9.3), and every decision rule, each written before its result, followed by the result. Sections
+   are in time order; a later section says when it supersedes an earlier one.
+4. `results/REPORT.md`: the LIMO phase (defenses, attacks), when you need those numbers.
+
+**Rules for this project (agreed with the authors).**
+1. **The rule comes before the result.** Before an experiment runs, its m8 entry says what is run and what each outcome
+   means. Record every deviation. Do not apply a pre-written fallback when the cause is a bug or a failed recipe;
+   ask the authors (m8 §9.3 has an example).
+2. **Ask the authors** before long GPU runs and before changing any fixed rule.
+3. **Never drop problems from a training pool.** Every pool keeps all its problems (LIMO: all 800); items a method
+   cannot produce are salvaged or reported, not removed.
+4. **Shared machine** (dspl1, 8 × L40S 46 GB). GPUs 0 and 1 are reserved for others: use 2–7. Labmates run jobs at
+   any time, so every queue waits for free memory before each job (`wait_free` in the scripts) and retries; jobs
+   started without that check have died from memory clashes.
+5. **Hugging Face:** `HF_HOME=/mnt/vault/huggingface_cache`, `HF_HUB_DISABLE_IMPLICIT_TOKEN=1`, and ungated mirrors
+   (`unsloth/Llama-3.2-3B`, `unsloth/Llama-3.2-3B-Instruct`). Never read or use another user's token (one sits in
+   the shared cache).
+6. **vLLM 0.8.5 (`.venv-dg`) can hang at interpreter exit.** Our vLLM scripts exit hard once their output is written
+   and first stop their own engine processes (`hard_exit` in `scripts/dg_*.py`, `scripts/38_math_long_teacher.py`).
+   A job started before that fix can leave an orphaned engine (parent PID 1) holding a GPU, which blocks every queue
+   waiting on that GPU. Find and stop such orphans of your own scripts with
+   `pkill -u $USER -P 1 -f "scripts/(dg_star|38_math_long_teacher|dg_score_vllm)\.py"`.
+7. **Numbers come from stored per-problem files**, never from logs. Record each result in m8 with its rule's verdict,
+   then in the paper.
+8. **Writing:** plain and specific, every claim with its number and seeds; no filler words.
+9. **Long jobs run detached:** `setsid nohup scripts/<x>.sh > logs/<x>.log 2>&1 < /dev/null & disown`. When stopping
+   jobs, use PIDs; `pkill -f` patterns can match the shell running them.
+
+**Environments.** `.venv-train` (LLaMA-Factory), `.venv-infer` (vLLM 0.11, Kim et al.'s evaluation), `.venv-dg` (the
+Distillation Game code: vLLM 0.8.5, TRL, PEFT). Build them as in README "Setting up a machine". Distillation Game code
+runs as `PYTHONPATH=third_party/ext/distillation-game/src .venv-dg/bin/python ...`.
+
+**Where results are** (not in git; on dspl1 under `/home/umid/AntiDistillation/antidistill/`):
+
+| Experiment | Files |
+| --- | --- |
+| LIMO setup (Qwen2.5-7B and smaller) | `saves/<model>_<condition>[_s<seed>]/`, `outputs/<label>/**/<benchmark>/*_t0.0_k1_*.jsonl` (score with `scripts/30_collect_results.py`) |
+| GSM8K / MATH setup (Distillation Game) | `outputs/setup2/<dataset>_<U|solo_l3i|solo_q7i>_s<seed>_<stamp>/`: `teacher/train_standard.json` (the solutions students are trained on), `RESULTS.md`. **In its table, "Teacher Accuracy" is the solution writer's own test accuracy and the `student_naive` column is the student's.** |
+| Untrained student, setup 2 | `outputs/setup2/base_<dataset>_s<seed>.json` |
+| Self-training (level A) | `outputs/setup2/star[_fewshot]_gsm8k_s<seed>/result.json` |
+| Combination students (U_ℓ) | `outputs/setup2_combo/<dataset>_<B|C>_<mix|seq>_s<seed>/result.json` |
+| MATH full-budget pilot | `outputs/setup3_math/` (`teacher_long8192_s123/summary.json`, `scores/<student>_<limit>.json`) |
+| DeepMath pilot | `outputs/setup3/pilot.json` |
+
+---
+
+# Part 2 — running the LIMO pipeline with a different student model
 
 Guide for reproducing one row of the reasoning-distillation table on a **new student model**.
 We ran it end-to-end with `Qwen/Qwen2.5-7B`; everything below marks what changes and what does not.

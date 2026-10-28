@@ -1,0 +1,116 @@
+diff --git a/scripts/run_pipeline.py b/scripts/run_pipeline.py
+index f160488..4d2ad63 100644
+--- a/scripts/run_pipeline.py
++++ b/scripts/run_pipeline.py
+@@ -175,24 +175,27 @@ def main() -> None:
+ 
+     # Proxy gradients are computed from standard holdout traces, matching the original pipeline.
+     from clean_sweep.train.distill import compute_student_holdout_grad, _response_template_for_model
+-    stage = _log_stage_start("Loading proxy model")
+-    proxy_model, proxy_tokenizer = load_model_and_tokenizer(cfg.model.proxy_student, cfg.model.tokenizer or cfg.model.proxy_student, cfg, device)
+-    _log_stage_end("Loading proxy model", stage, extra=str(cfg.model.proxy_student))
+-    response_template = _response_template_for_model(cfg.model.proxy_student or "", proxy_tokenizer)
+-    proxy_model.train()
+-    set_seed(cfg.run.seed)
+-    stage_label = "Proxy gradients | source=standard_holdout"
+-    stage = _log_stage_start(stage_label)
+-    proxy_grads = compute_student_holdout_grad(
+-        proxy_model,
+-        proxy_tokenizer,
+-        holdout_full,
+-        device,
+-        response_template,
+-        cfg.distill.max_length,
+-        cfg.distill.holdout_grad_batch_size,
+-    )
+-    _log_stage_end(stage_label, stage, extra=f"n_holdout={len(holdout_full)}")
++    # ANTIDISTILL PATCH: the proxy gradients are used only by ADS teachers; skip the proxy when none is requested.
++    proxy_grads = None
++    if cfg.teachers.antidistillation_lams:
++        stage = _log_stage_start("Loading proxy model")
++        proxy_model, proxy_tokenizer = load_model_and_tokenizer(cfg.model.proxy_student, cfg.model.tokenizer or cfg.model.proxy_student, cfg, device)
++        _log_stage_end("Loading proxy model", stage, extra=str(cfg.model.proxy_student))
++        response_template = _response_template_for_model(cfg.model.proxy_student or "", proxy_tokenizer)
++        proxy_model.train()
++        set_seed(cfg.run.seed)
++        stage_label = "Proxy gradients | source=standard_holdout"
++        stage = _log_stage_start(stage_label)
++        proxy_grads = compute_student_holdout_grad(
++            proxy_model,
++            proxy_tokenizer,
++            holdout_full,
++            device,
++            response_template,
++            cfg.distill.max_length,
++            cfg.distill.holdout_grad_batch_size,
++        )
++        _log_stage_end(stage_label, stage, extra=f"n_holdout={len(holdout_full)}")
+ 
+     beta_teacher_values = cfg.teachers.strategic_beta_teachers
+     for lam in cfg.teachers.antidistillation_lams:
+diff --git a/src/clean_sweep/data/__init__.py b/src/clean_sweep/data/__init__.py
+index a41025f..550b8c3 100644
+--- a/src/clean_sweep/data/__init__.py
++++ b/src/clean_sweep/data/__init__.py
+@@ -1,7 +1,6 @@
++# ANTIDISTILL PATCH: gsm_hard.py and svamp.py are imported upstream but missing from the public repo.
+ from .gsm8k import format_prompt_gsm8k, load_gsm8k_splits
+-from .gsm_hard import load_gsm_hard_splits
+ from .math import format_prompt_math, load_math_splits
+-from .svamp import load_svamp_splits
+ 
+ 
+ def load_dataset_splits(
+@@ -19,20 +18,6 @@ def load_dataset_splits(
+             holdout_size=holdout_size,
+             test_size=test_size,
+         )
+-    if dataset_name == "gsm_hard":
+-        return load_gsm_hard_splits(
+-            seed=seed,
+-            train_size=train_size,
+-            holdout_size=holdout_size,
+-            test_size=test_size,
+-        )
+-    if dataset_name == "svamp":
+-        return load_svamp_splits(
+-            seed=seed,
+-            train_size=train_size,
+-            holdout_size=holdout_size,
+-            test_size=test_size,
+-        )
+     if dataset_name == "math":
+         return load_math_splits(
+             seed=seed,
+@@ -47,8 +32,6 @@ __all__ = [
+     "format_prompt_gsm8k",
+     "format_prompt_math",
+     "load_gsm8k_splits",
+-    "load_gsm_hard_splits",
+     "load_math_splits",
+-    "load_svamp_splits",
+     "load_dataset_splits",
+ ]
+diff --git a/src/clean_sweep/generation/core.py b/src/clean_sweep/generation/core.py
+index 29295e7..1467e8e 100644
+--- a/src/clean_sweep/generation/core.py
++++ b/src/clean_sweep/generation/core.py
+@@ -199,11 +199,16 @@ def _answer_force(
+ ) -> list[str]:
+     suffix = getattr(cfg.generation, "answer_force_suffix", ANSWER_FORCE_SUFFIX_DEFAULT)
+     response_string = None
+-    if traces:
++    # ANTIDISTILL PATCH: upstream checks only traces[0]; when the first prompt is longer than max_prompt_tokens its
++    # chat template is truncated (assistant marker cut off) and every MATH run whose split starts with such a problem
++    # crashed (seed 124, 2026-10-22). Take the marker from the first trace that has one; otherwise unchanged.
++    for t in traces:
+         for _, marker in RESPONSE_STRINGS.items():
+-            if marker in traces[0]["full_text"]:
++            if marker in t["full_text"]:
+                 response_string = marker
+                 break
++        if response_string is not None:
++            break
+     if response_string is None:
+         raise ValueError("Response string not found in tokenizer chat template")
+ 
