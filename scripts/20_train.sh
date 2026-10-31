@@ -6,21 +6,27 @@
 # `dataset_dir: data` relatively.
 #
 # Usage:
-#   scripts/20_train.sh configs/train/qwen2.5-7b_limo.yaml
-#   GPUS=0,1,2,3 scripts/20_train.sh configs/train/qwen2.5-7b_limo.yaml   # partial node
+#   GPUS=4,5,6,7 scripts/20_train.sh configs/train/qwen2.5-7b_limo_s43.yaml
 #
-# NOTE on GPUS: the LIMO config is per_device_train_batch_size=1, gradient_accumulation_steps=1,
-# so the *global batch size equals the GPU count*. Changing GPUS silently changes the effective
-# hyperparameters (8 GPUs -> global batch 8, 100 steps/epoch). Use all 8 for the replication;
-# if you must use fewer, raise gradient_accumulation_steps to compensate and record it.
+# NOTE on GPUS: LIMO's recipe has global batch 8 = GPUs x per_device_train_batch_size x
+# gradient_accumulation_steps. One job's GPUs must come from one group (0-3 or 4-7), so the 7B configs
+# use 4 GPUs x 1 x 2 and the 1.5B/3B configs 2 x 1 x 4; the seed-42 qwen2.5-7b_limo.yaml (8 x 1 x 1)
+# no longer fits one group. The script refuses any other global batch unless GLOBAL_BATCH_OK=1.
 set -euo pipefail
 
 CONFIG="${1:?usage: 20_train.sh <config.yaml>}"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 
-GPUS="${GPUS:-0,1,2,3,4,5,6,7}"
+GPUS="${GPUS:-0,1,2,3}"
+source scripts/gpu_env.sh; require_one_group "$GPUS"
 NGPU=$(awk -F',' '{print NF}' <<<"$GPUS")
+BS=$(awk '/^per_device_train_batch_size:/{print $2}' "$CONFIG")
+GA=$(awk '/^gradient_accumulation_steps:/{print $2}' "$CONFIG")
+if (( NGPU * ${BS:-1} * ${GA:-1} != 8 )) && [[ "${GLOBAL_BATCH_OK:-0}" != 1 ]]; then
+  echo "ERROR: global batch $NGPU x ${BS:-1} x ${GA:-1} != 8 (LIMO's recipe); set GLOBAL_BATCH_OK=1 to override." >&2
+  exit 1
+fi
 NAME="$(basename "${CONFIG%.yaml}")"
 LOG="$REPO/logs/train_${NAME}.log"
 mkdir -p "$REPO/logs"
@@ -67,7 +73,7 @@ fi
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 START=$(date +%s)
-CUDA_VISIBLE_DEVICES="$GPUS" FORCE_TORCHRUN=1 \
+CUDA_VISIBLE_DEVICES="$GPUS" FORCE_TORCHRUN=1 $(pin "$GPUS") \
   "$REPO/.venv-train/bin/llamafactory-cli" train "$CONFIG" 2>&1 | tee "$LOG"
 
 ELAPSED=$(( $(date +%s) - START ))

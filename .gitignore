@@ -20,6 +20,7 @@ data/defended/_shard*.json
 
 # Eval artifacts
 outputs/
+/outputs
 third_party/kim_eval/outputs*/
 third_party/kim_eval/completions/
 third_party/kim_eval/.venv/

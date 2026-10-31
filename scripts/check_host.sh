@@ -23,36 +23,26 @@ echo "=== topology ==="
 nvidia-smi topo -m 2>/dev/null | head -n $((N+2))
 echo
 
-probe() {  # $1 = n_gpus, $2 = extra env
-  local n=$1 env="$2"
-  env $env timeout 180 torchrun --nproc_per_node="$n" --master_port=$((29700+n)) \
-      scripts/diag_nccl.py 2>&1 | grep -oE "bus bw ~[0-9.]+ GB/s|Watchdog caught" | head -1
+# Jobs never span the two GPU groups on dspl1 (scripts/gpu_env.sh), so the probe runs inside one group.
+PROBE_GPUS="${PROBE_GPUS:-0,1,2,3}"
+source scripts/gpu_env.sh; require_one_group "$PROBE_GPUS"
+NP=$(awk -F',' '{print NF}' <<<"$PROBE_GPUS")
+probe() {  # $1 = extra env
+  env $1 CUDA_VISIBLE_DEVICES="$PROBE_GPUS" timeout 180 $(pin "$PROBE_GPUS") torchrun --nproc_per_node="$NP" \
+      --master_port=$((29700+NP)) scripts/diag_nccl.py 2>&1 | grep -oE "bus bw ~[0-9.]+ GB/s|Watchdog caught" | head -1
 }
 
-echo "=== NCCL probe: default settings (P2P enabled) ==="
-DEFAULT_RESULT=$(probe "$N" "")
+echo "=== NCCL probe on GPUs $PROBE_GPUS: default settings (P2P enabled) ==="
+DEFAULT_RESULT=$(probe "")
 echo "  ${DEFAULT_RESULT:-NO OUTPUT / HUNG}"
 
 P2P_BROKEN=0
 if [[ -z "$DEFAULT_RESULT" || "$DEFAULT_RESULT" == *"Watchdog"* ]]; then
   echo
   echo "  !! collectives FAILED or hung with P2P enabled — retrying with NCCL_P2P_DISABLE=1"
-  FALLBACK=$(probe "$N" "NCCL_P2P_DISABLE=1")
+  FALLBACK=$(probe "NCCL_P2P_DISABLE=1")
   echo "  with P2P disabled: ${FALLBACK:-STILL FAILING}"
   [[ -n "$FALLBACK" && "$FALLBACK" != *"Watchdog"* ]] && P2P_BROKEN=1
-fi
-
-# Only worth comparing GPU-count scaling when everything must go through host memory.
-SUGGESTED_GPUS=$(seq -s, 0 $((N-1)))
-if [[ $P2P_BROKEN -eq 1 && $N -ge 8 ]]; then
-  echo
-  echo "=== P2P is broken here; checking whether fewer GPUs are faster ==="
-  HALF=$((N/2))
-  R_HALF=$(CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((HALF-1))) probe "$HALF" "NCCL_P2P_DISABLE=1")
-  echo "  ${HALF} GPUs: ${R_HALF:-n/a}"
-  echo "  ${N} GPUs: (measured above)"
-  echo "  If the half-node number is much higher, prefer it and raise gradient_accumulation_steps"
-  echo "  to keep the global batch size constant."
 fi
 
 {

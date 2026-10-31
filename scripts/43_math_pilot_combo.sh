@@ -6,8 +6,9 @@
 #   setsid nohup scripts/43_math_pilot_combo.sh > logs/setup3_math_combo.log 2>&1 < /dev/null & disown
 set -uo pipefail
 cd "$(dirname "$0")/.."
+source scripts/gpu_env.sh
 export PYTHONPATH=third_party/ext/distillation-game/src HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
-       HF_HOME=/mnt/vault/huggingface_cache TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+       TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 PY=.venv-dg/bin/python; CFG=configs/setup2/math_U_s123.yaml; O=outputs/setup3_math
 LONG=$O/teacher_long8192_s123/train_long.json
 SOLO_B=$(ls -dt outputs/setup2/math_solo_l3i_s123_[0-9]* | head -1)/teacher/train_standard.json
@@ -20,11 +21,11 @@ job() {  # gpu name train-args...
   [[ -f $f ]] && return 0
   if [[ ! -f $O/$n/merged/config.json ]]; then
     wait_free $g; echo "[$(ts)] TRAIN $n on GPU $g"
-    CUDA_VISIBLE_DEVICES=$g $PY scripts/dg_train_from_traces.py --config $CFG --out $O/$n "$@" > logs/setup3_math_train_$n.log 2>&1
+    CUDA_VISIBLE_DEVICES=$g $(pin $g) $PY scripts/dg_train_from_traces.py --config $CFG --out $O/$n "$@" > logs/setup3_math_train_$n.log 2>&1
     [[ -f $O/$n/merged/config.json ]] || { echo "[$(ts)] FAILED train $n: $(tail -n 1 logs/setup3_math_train_$n.log | cut -c1-200)"; return 1; }
   fi
   wait_free $g; echo "[$(ts)] SCORE $n at 8192 on GPU $g"
-  CUDA_VISIBLE_DEVICES=$g $PY scripts/dg_score_vllm.py --config $CFG --model $O/$n/merged --max-new 8192 --out $f > logs/setup3_math_score_${n}_8192.log 2>&1
+  CUDA_VISIBLE_DEVICES=$g $(pin $g) $PY scripts/dg_score_vllm.py --config $CFG --model $O/$n/merged --max-new 8192 --out $f > logs/setup3_math_score_${n}_8192.log 2>&1
   [[ -f $f ]] && echo "[$(ts)] SCORED $n: $(tail -n 1 logs/setup3_math_score_${n}_8192.log | cut -c1-200)" \
     || { echo "[$(ts)] FAILED score $n: $(tail -n 1 logs/setup3_math_score_${n}_8192.log | cut -c1-200)"; return 1; }
 }

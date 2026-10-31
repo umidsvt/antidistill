@@ -12,7 +12,6 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p logs
 G="${GPUS:-4,5,6,7}"
-[[ ",$G," == *",0,"* || ",$G," == *",1,"* ]] && { echo "GPUs 0 and 1 are reserved"; exit 1; }
 BENCH=olympiadbench
 
 QUEUE=(

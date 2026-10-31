@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PART defense: train, then evaluate. GPUs 4-7 ONLY (0-1 are reserved by the user).
+# PART defense: train, then evaluate. GPUs 4-7 by default (one group).
 #
 #   scripts/22_part_run.sh                         # the PART condition
 #   CONDITION=part_step1 scripts/22_part_run.sh    # ablation: self-talk removed, no reordering

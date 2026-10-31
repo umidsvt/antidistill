@@ -1,6 +1,8 @@
 # Implementation Plan
 
-**Status: 2026-10-28.** Part I is the current plan: the audit of anti-distillation evaluation setups. Part II is the
+**Status: 2026-10-30.** dspl1 was rebuilt on 2026-10-29 and every file outside git was lost (CLAUDE.md, "Start
+here"). The environments, upstream clones and models were rebuilt on 2026-10-30, and the paper was brought up to date
+with m8. Part I is the current plan: the audit of anti-distillation evaluation setups. Part II is the
 original plan of September 2026 (replication and attacks), kept because it documents the LIMO pipeline the audit still
 uses. For any number or decision rule, `results/m8_audit_design.md` (m8) is the source; this file says where things
 stand and what comes next.
@@ -14,7 +16,7 @@ stand and what comes next.
   undefended traces, and more), applied to several datasets, plus a setup that passes. Reasoning: m8 §1 and §8.
 - **Paper.** *Is There Anything to Protect? Validity Checks for Evaluating Anti-Distillation Defenses of Reasoning
   Models*, in the private repo https://github.com/ceferisbarov/antidistillation-overleaf, folder `icml2027_audit/`
-  (11 pages, ICML-like layout, "–" for missing results). The co-author's draft of the earlier narrative is in
+  (12 pages, ICML-like layout, "–" for missing results). The co-author's draft of the earlier narrative is in
   `icml2027/` of the same repo; do not edit it.
 - **Fixed decisions.** Necessity margin: U_ℓ above R_ℓ by more than the 95% interval over 3 seeds and by at least a
   quarter of U_ℓ's gain over the untrained student (m8 §7). The attacker's model: the strongest open model no larger
@@ -31,22 +33,28 @@ stand and what comes next.
 | 4 | Level A on GSM8K | §9.3 | done | four RL recipes did not learn; self-training with the setup's prompt 4.9% (one seed, recipe failure); **few-shot self-training 34.3% (3 seeds): passes at level A** |
 | 5 | Setup 2, MATH variant, 3 seeds | §9.4 | done | U 15.0%, Solo B 14.9%, Solo C 17.3%; the 1,024-token cap makes the teacher (63%) a weaker solver than Qwen2.5-7B-Instruct (73%) |
 | 6 | Setup 3 pilot: hardest DeepMath problems | §10 | done | an open 7B reasoning model never solves only 10.3% of them; harder problems do not create the gap |
-| 7 | Option 4 pilot: MATH with the teacher at 8,192 tokens | §10.1 | U_long done; combination students not started (need the authors' go-ahead) | teacher 79.0%; U_long 18.1% vs Solo C 18.5%: fails by the rule, because the student finishes 41% of its answers (31.4% right on those) |
-| 8 | Combination students for U_ℓ, setup 2 | §11 | seed 123: 5 of 8 done, 1 running, 2 waiting for GPU 6; seeds 124–125 not started | mixing the attacker's and the teacher's solutions is best, 1–3 points above U and Solo, far below the margin |
+| 7 | Option 4 pilot: MATH with the teacher at 8,192 tokens | §10.1 | U_long done; combination students not started (need the authors' go-ahead; their inputs, the long-budget solutions, were lost on 2026-10-29) | teacher 79.0%; U_long 18.1% vs Solo C 18.5%: fails by the rule, because the student finishes 41% of its answers (31.4% right on those) |
+| 8 | Combination students for U_ℓ, setup 2 | §11 | seed 123: 5 of 8 done; MATH C mix was running and GSM8K B seq and MATH C seq waiting when the machine was rebuilt; seeds 124–125 not started; inputs (setup-2 solutions) lost | mixing the attacker's and the teacher's solutions is best, 1–3 points above U and Solo, far below the margin |
 | 9 | LIMO combination student (7B Solo + LIMO) | §11 | not started | needs 4 GPUs for about 20 hours |
 | 10 | Our own PoE / ADS defended runs | – | not started | only useful in a setup that passes |
 
-## Running now (2026-10-28 07:00, user umid on dspl1)
+## Running now (2026-10-31 00:12, user umid on dspl1)
 
 | What | Script | GPUs | Log | Outputs |
 | --- | --- | --- | --- | --- |
-| combination students, seed 123 (MATH C mix running; GSM8K B seq and MATH C seq wait for GPU 6, which is held by an orphaned vLLM engine, PID 962535) | `scripts/42_combo_pool.sh`, jobs `outputs/setup2_combo/jobs_s123.txt` | 6, 7 | `logs/setup2_combo.log` | `outputs/setup2_combo/<ds>_<level>_<recipe>_s<seed>/result.json` |
+| setup-2 regeneration (m8 §12): U, Solo B, Solo C for GSM8K and MATH, seeds 123–125, then the untrained student; 24 jobs, MATH first | `scripts/33_setup2_pool.sh`, jobs `outputs/setup2/regen_jobs.txt` | 0–3 | `logs/setup2_regen_pool.log` | `outputs/setup2/<stem>_<stamp>/RESULTS.md`, `outputs/setup2/base_<ds>_s<seed>.json` |
 
-Prepared but not started (each needs the authors' go-ahead): seeds 124–125 of the combination students
-(`outputs/setup2_combo/jobs_s124_125.txt`, run with `scripts/42_combo_pool.sh`) and the pilot's combination students
-with the long-budget teacher (`scripts/43_math_pilot_combo.sh`). Every queue waits for free GPU memory and retries
-once; finished jobs are skipped on restart. If a GPU stays occupied
-after its job ended, look for an orphaned vLLM engine of our scripts (CLAUDE.md, "Start here").
+The smoke run (`configs/setup2/smoke.yaml`) passed on 2026-10-31: teacher 79.2% on 48 test problems, as on
+2026-10-20. When the pool is done, apply the §12 rule and record the result in m8. The seed-123 combination queue
+ended with the machine rebuild, and its job files were lost with the rest of `outputs/`. Every queue waits for free
+GPU memory and retries; finished jobs are skipped on restart. If a GPU stays occupied after its job ended, look for an
+orphaned vLLM engine of our scripts (CLAUDE.md, "Start here").
+
+**Before any experiment that builds on earlier data:** regenerate its inputs, and write in m8 how the new runs relate
+to the recorded ones. The setup-2 U and Solo runs are cheap (about 3 GPU-hours each), and re-running them both
+regenerates the solution files and checks the new environment against the recorded numbers (U on GSM8K: 59.0%).
+Sampled solutions will differ from the lost ones, so combination students must be compared with U and Solo trained on
+the same regenerated files.
 
 ## Next steps, in order
 
@@ -61,7 +69,11 @@ after its job ended, look for an orphaned vLLM engine of our scripts (CLAUDE.md,
 4. **Level A on MATH:** few-shot self-training needs MATH worked examples (not designed yet).
 5. **A setup that passes** (the paper's contribution 6, still open): so far only GSM8K at level A.
 6. **Our own PoE / ADS runs** in a setup that passes, for protection scores (A_ℓ).
-7. **Paper:** fill the "–" cells; check citations marked `% note: CHECK`; consider the ICML style files of `icml2027/`.
+7. **Paper:** synced with m8 on 2026-10-30 (level A, §11 definitions, combination students of seed 123, the MATH
+   8,192-token pilot, the DeepMath pilot). Still open: fill the "–" cells; three citations the authors need to add to
+   `references.bib` (STaR, Zelikman et al. 2022; the GSM8K chain-of-thought examples, Wei et al. 2022; DeepMath-103K,
+   He et al. 2025), marked in orange in the text; check citations marked `% note: CHECK`; consider the ICML style
+   files of `icml2027/`.
 
 ## Open decisions (for the authors)
 

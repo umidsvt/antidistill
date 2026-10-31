@@ -1,6 +1,15 @@
 # CLAUDE.md — guide for coding agents
 
-## Start here (state of 2026-10-28)
+## Start here (state of 2026-10-30)
+
+**Machine move (2026-10-29).** dspl1 was rebuilt. Only what is in git survived: code, configs, the `results/*.md`
+records and the two hindsight datasets. Every per-problem result file, checkpoint, generated dataset (raw LIMO, Solo,
+Search, Style, PART, setup-2 solutions) and environment of the earlier work is gone. The numbers in `results/` and in
+the paper stand as recorded, but cannot be recomputed. Anything that needs those files as input (for example
+combination students, which reuse the setup-2 Solo and teacher solutions) must regenerate them first, under a rule
+written in m8. The rebuilt host's GPU P2P works (`scripts/check_host.sh`, 2026-10-30: NCCL all-reduce 18.4 GB/s on
+GPUs 0–3, against 4.7 GB/s with P2P disabled on the old host), so the P2P workarounds in §0.5 and §7.2–7.3 below no
+longer apply to dspl1; `.host_profile` sets no NCCL overrides.
 
 This repository is the research code for an **audit of the setups used to evaluate anti-distillation defenses**
 (paper draft: private repo https://github.com/ceferisbarov/antidistillation-overleaf, folder `icml2027_audit/`). It
@@ -23,12 +32,18 @@ for that LIMO pipeline and is still accurate for it.
    say yes to it; a rule in m8 that names the next run is not a go-ahead. Ask before changing any fixed rule.
 3. **Never drop problems from a training pool.** Every pool keeps all its problems (LIMO: all 800); items a method
    cannot produce are salvaged or reported, not removed.
-4. **Shared machine** (dspl1, 8 × L40S 46 GB). GPUs 0 and 1 are reserved for others: use 2–7. Labmates run jobs at
-   any time, so every queue waits for free memory before each job (`wait_free` in the scripts) and retries; jobs
-   started without that check have died from memory clashes.
-5. **Hugging Face:** `HF_HOME=/mnt/vault/huggingface_cache`, `HF_HUB_DISABLE_IMPLICIT_TOKEN=1`, and ungated mirrors
-   (`unsloth/Llama-3.2-3B`, `unsloth/Llama-3.2-3B-Instruct`). Never read or use another user's token (one sits in
-   the shared cache).
+4. **Shared machine** (dspl1, 8 × L40S 46 GB, no NVLink; lab rules in `/data/shared/lab/CLAUDE.md`). Any of GPUs 0–7
+   may be used, and more than 4 at a time (agreed with the user 2026-10-30), but **one job's GPUs must all come from
+   one group, 0–3 or 4–7**, and the job is pinned to that group's NUMA node. Every launcher sources
+   `scripts/gpu_env.sh`, which checks the group (`require_one_group`) and adds the `numactl` prefix (`$(pin $g)`).
+   Never use a GPU another person is using (`/data/shared/lab/gpus` shows who holds what). Labmates run jobs at any
+   time, so every queue waits for free memory before each job (`wait_free` in the scripts) and retries; jobs started
+   without that check have died from memory clashes.
+5. **Hugging Face:** models and datasets live in the lab's shared cache; `HF_HUB_CACHE` and `HF_DATASETS_CACHE` are
+   set for every login in `/etc/environment`. Do not override them and do not set `HF_HOME`. Use
+   `HF_HUB_DISABLE_IMPLICIT_TOKEN=1` and ungated mirrors (`unsloth/Llama-3.2-3B`, `unsloth/Llama-3.2-3B-Instruct`).
+   Never read or use another user's token. Big files go to `/data/umid`: `saves` and `outputs` are symlinks to
+   `/data/umid/antidistill/`.
 6. **vLLM 0.8.5 (`.venv-dg`) can hang at interpreter exit.** Our vLLM scripts exit hard once their output is written
    and first stop their own engine processes (`hard_exit` in `scripts/dg_*.py`, `scripts/38_math_long_teacher.py`).
    A job started before that fix can leave an orphaned engine (parent PID 1) holding a GPU, which blocks every queue
@@ -44,7 +59,8 @@ for that LIMO pipeline and is still accurate for it.
 Distillation Game code: vLLM 0.8.5, TRL, PEFT). Build them as in README "Setting up a machine". Distillation Game code
 runs as `PYTHONPATH=third_party/ext/distillation-game/src .venv-dg/bin/python ...`.
 
-**Where results are** (not in git; on dspl1 under `/home/umid/AntiDistillation/antidistill/`):
+**Where results go** (not in git; `outputs` and `saves` point to `/data/umid/antidistill/`). The files from before
+2026-10-29 are lost (see "Machine move" above); new runs write to the same layout:
 
 | Experiment | Files |
 | --- | --- |
@@ -279,7 +295,8 @@ kept checkpoints from ~300 GB to ~43 GB.
 
 **Global batch must stay 8** (LIMO's recipe: 8 GPUs × bs1 × ga1). On 4 GPUs use
 `gradient_accumulation_steps: 2`. Changing GPU count without compensating silently changes the
-hyperparameters.
+hyperparameters. On dspl1 a job stays inside one 4-GPU group, so 7B runs use 4 GPUs × ga 2;
+`scripts/20_train.sh` refuses any global batch other than 8 unless `GLOBAL_BATCH_OK=1`.
 
 **Keep intermediate checkpoints (epochs 5/10/15).** We found accuracy does *not* degrade with
 more epochs — instead answer-production climbs 5/30 → 19/30 from epoch 5 to 10, because the
@@ -299,6 +316,7 @@ scripts/41_generate_hindsight.sh          # ~2-3 h for 800 traces
 We used two TP=4 replicas rather than one TP=8 **because our host's P2P is broken** and those
 ~128 blocking all-reduces per token must not cross the socket boundary (§7.2). **On a healthy
 host use a single TP=8 server instead** — `GPUS=0,1,2,3,4,5,6,7 PORT=8001` and drop the sharding.
+On dspl1 keep two TP=4 replicas: one job may not span both GPU groups (rule 4 in "Start here").
 
 Settings that matter, learned the hard way:
 

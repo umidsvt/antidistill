@@ -30,6 +30,7 @@ REPO="$PWD"
 
 MODEL="${MODEL:-deepseek-ai/DeepSeek-R1-Distill-Qwen-32B}"
 GPUS="${GPUS:-0,1,2,3}"
+source scripts/gpu_env.sh; require_one_group "$GPUS"
 PORT="${PORT:-8001}"
 SERVED_NAME="${SERVED_NAME:-$MODEL}"
 REASONING_PARSER="${REASONING_PARSER:-deepseek_r1}"
@@ -61,7 +62,7 @@ if [[ "${NCCL_P2P_DISABLE:-0}" == "1" && "$TP" -gt 1 ]]; then
   echo "note : P2P disabled on this host -> also disabling vLLM custom all-reduce"
 fi
 
-CUDA_VISIBLE_DEVICES="$GPUS" VLLM_ATTENTION_BACKEND=FLASH_ATTN \
+CUDA_VISIBLE_DEVICES="$GPUS" VLLM_ATTENTION_BACKEND=FLASH_ATTN $(pin "$GPUS") \
   "$REPO/.venv-infer/bin/python" -m vllm.entrypoints.openai.api_server \
   --model "$MODEL" \
   --served-model-name "$SERVED_NAME" \

@@ -24,7 +24,9 @@ uv pip install --python "$TRAIN_PY" "torch==2.6.0" --torch-backend cu124
 # `uv venv` does not seed setuptools; deepspeed and trl both import it at load time.
 uv pip install --python "$TRAIN_PY" setuptools wheel packaging ninja
 
-uv pip install --python "$TRAIN_PY" -e "third_party/LLaMA-Factory[metrics]"
+# pyarrow is pinned: LLaMA-Factory keeps numpy<2, and pyarrow >= 22 refuses to import with numpy 1.x
+# ("pyarrow requires NumPy 2.0 or newer"; resolved to 26.0.0 on the 2026-10-30 rebuild).
+uv pip install --python "$TRAIN_PY" -e "third_party/LLaMA-Factory[metrics]" "pyarrow<22"
 uv pip install --python "$TRAIN_PY" "deepspeed>=0.10.0,<=0.16.9"
 
 # flash-attn: use the prebuilt wheel matching (torch 2.6, cp311, cxx11abi=False).
@@ -49,7 +51,9 @@ INFER_PY="$REPO/.venv-infer/bin/python"
 uv venv .venv-infer --python 3.12
 
 uv pip install --python "$INFER_PY" -U "vllm==0.11.0" --torch-backend auto
-uv pip install --python "$INFER_PY" "sglang[all]" openai
+# torch stays at the version vLLM 0.11.0 is compiled against. Unpinned, sglang (0.5.23 on the 2026-10-30
+# rebuild) replaced torch 2.8.0 with 2.14.1 and vLLM's kernels no longer loaded (undefined symbol in vllm/_C).
+uv pip install --python "$INFER_PY" "sglang[all]" openai "torch==2.8.0" --torch-backend auto
 
 # math-eval dependencies of third_party/kim_eval/utils/{grader,parser}.py
 #
@@ -65,6 +69,7 @@ uv pip install --python "$INFER_PY" rapidfuzz
 
 "$INFER_PY" - <<'PY'
 import vllm, torch, transformers
+import vllm._C  # the compiled kernels: `import vllm` alone passes even when they cannot load
 print("env B OK |", "vllm", vllm.__version__, "| torch", torch.__version__,
       "| tf", transformers.__version__)
 PY

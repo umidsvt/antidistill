@@ -34,6 +34,7 @@ if [[ -d "$MODEL" ]]; then MODEL="$(cd "$MODEL" && pwd)"
 elif [[ -d "$REPO/$MODEL" ]]; then MODEL="$(cd "$REPO/$MODEL" && pwd)"
 fi
 GPUS="${GPUS:-0,1,2,3}"
+source "$REPO/scripts/gpu_env.sh"; require_one_group "$GPUS"
 PY="$REPO/.venv-infer/bin/python"
 OUT="$REPO/outputs/$CONDITION"
 
@@ -51,7 +52,7 @@ echo "model=$MODEL condition=$CONDITION data=$DATA temp=$TEMP n=$NSAMP gpus=$GPU
 echo "log -> ${LOG#$REPO/}"
 
 cd "$REPO/third_party/kim_eval"
-CUDA_VISIBLE_DEVICES="$GPUS" VLLM_ATTENTION_BACKEND=FLASH_ATTN \
+CUDA_VISIBLE_DEVICES="$GPUS" VLLM_ATTENTION_BACKEND=FLASH_ATTN $(pin "$GPUS") \
 "$PY" "$SCRIPT" \
   --model_name_or_path "$MODEL" \
   --data_name "$DATA" \

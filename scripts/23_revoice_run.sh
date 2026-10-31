@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Attacks on PART, end to end: ATTACK=revoice_part (m6e) or ATTACK=style_part (m6f): generate the data, apply the
-# §5 checks, train, evaluate. GPUs 4-7 ONLY (0-1 are reserved). Stops before training if a check fails.
+# §5 checks, train, evaluate. GPUs 4-7 by default (one group). Stops before training if a check fails.
 # Then: .venv-infer/bin/python scripts/37_revoice_audit.py --verdict
 set -uo pipefail
 cd "$(dirname "$0")/.."

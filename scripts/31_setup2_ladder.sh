@@ -9,8 +9,9 @@
 #   setsid nohup scripts/31_setup2_ladder.sh > logs/setup2_ladder.log 2>&1 < /dev/null & disown
 set -uo pipefail
 cd "$(dirname "$0")/.."
+source scripts/gpu_env.sh
 export PYTHONPATH=third_party/ext/distillation-game/src HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
-       HF_HOME=/mnt/vault/huggingface_cache TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+       TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 PY=.venv-dg/bin/python
 OUT=outputs/setup2
 NEED_MIB=36000
@@ -30,7 +31,7 @@ try3() {        # $1 gpu, $2 done-test command, rest: the job command
   for i in 1 2 3; do
     eval "$done" && return 0
     wait_free "$g"
-    CUDA_VISIBLE_DEVICES=$g DG_MASTER_PORT=$((29500 + g)) "$@"
+    CUDA_VISIBLE_DEVICES=$g DG_MASTER_PORT=$((29500 + g)) $(pin $g) "$@"
     eval "$done" && return 0
     echo "[$(ts)] attempt $i failed on GPU $g: $*" | cut -c1-200; sleep 600
   done

@@ -7,11 +7,11 @@
 #   GPUS=2,3,4,5 setsid nohup scripts/29_setup2_run.sh > logs/setup2_run.log 2>&1 < /dev/null & disown
 set -uo pipefail
 cd "$(dirname "$0")/.."
+source scripts/gpu_env.sh
 G="${GPUS:-2,3,4,5}"
-[[ ",$G," == *",0,"* || ",$G," == *",1,"* ]] && { echo "GPUs 0 and 1 are reserved"; exit 1; }
 IFS=, read -ra GPU <<<"$G"
 export PYTHONPATH=third_party/ext/distillation-game/src HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
-       HF_HOME=/mnt/vault/huggingface_cache TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+       TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 PY=.venv-dg/bin/python
 OUT=outputs/setup2
 ts() { date '+%F %T'; }
@@ -21,7 +21,7 @@ run_distill() {   # $1 gpu, $2 config stem (e.g. gsm8k_U_s123)
   local d; d="$(latest "$2")"
   if [[ -n "$d" && -f "$d/RESULTS.md" ]]; then echo "[$(ts)] SKIP $2 (done: $d)"; return; fi
   echo "[$(ts)] START $2 on GPU $1"
-  CUDA_VISIBLE_DEVICES=$1 $PY third_party/ext/distillation-game/scripts/run_pipeline.py \
+  CUDA_VISIBLE_DEVICES=$1 $(pin $1) $PY third_party/ext/distillation-game/scripts/run_pipeline.py \
     --config "configs/setup2/$2.yaml" > "logs/setup2_$2.log" 2>&1
   d="$(latest "$2")"
   echo "[$(ts)] DONE  $2: $(grep -a -A4 'Comparison Matrix' "$d/RESULTS.md" 2>/dev/null | tail -1)"
@@ -29,7 +29,7 @@ run_distill() {   # $1 gpu, $2 config stem (e.g. gsm8k_U_s123)
 run_base() {      # $1 gpu, $2 seed
   [[ -f "$OUT/base_gsm8k_s$2.json" ]] && { echo "[$(ts)] SKIP base s$2"; return; }
   echo "[$(ts)] START base s$2 on GPU $1"
-  CUDA_VISIBLE_DEVICES=$1 $PY scripts/dg_eval_base.py "configs/setup2/gsm8k_U_s$2.yaml" > "logs/setup2_base_s$2.log" 2>&1
+  CUDA_VISIBLE_DEVICES=$1 $(pin $1) $PY scripts/dg_eval_base.py "configs/setup2/gsm8k_U_s$2.yaml" > "logs/setup2_base_s$2.log" 2>&1
   echo "[$(ts)] DONE  base s$2: $(tail -1 "logs/setup2_base_s$2.log")"
 }
 run_rl() {        # $1 gpu, $2 seed
@@ -37,7 +37,7 @@ run_rl() {        # $1 gpu, $2 seed
   local d; d="$(latest "gsm8k_U_s$2")"
   [[ -f "$d/teacher/train_standard.json" ]] || { echo "[$(ts)] rl s$2: no teacher answers (U run missing)"; return; }
   echo "[$(ts)] START rl s$2 on GPU $1"
-  CUDA_VISIBLE_DEVICES=$1 DG_MASTER_PORT=$((29500 + $1)) $PY scripts/dg_rl_base.py --config "configs/setup2/gsm8k_U_s$2.yaml" \
+  CUDA_VISIBLE_DEVICES=$1 DG_MASTER_PORT=$((29500 + $1)) $(pin $1) $PY scripts/dg_rl_base.py --config "configs/setup2/gsm8k_U_s$2.yaml" \
     --teacher-train "$d/teacher/train_standard.json" --vllm-mem 0.5 > "logs/setup2_rl_s$2.log" 2>&1
   echo "[$(ts)] DONE  rl s$2: $(tail -1 "logs/setup2_rl_s$2.log")"
 }

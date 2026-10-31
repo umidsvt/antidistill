@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Generate the PART-defended dataset (results/m4_part_design.md): serve the rewriter, rewrite the
-# 800 LIMO traces segment by segment, stop the server(s). GPUs 4-7, plus 2-3 via GPUS2; never 0-1.
+# 800 LIMO traces segment by segment, stop the server(s). GPUs 4-7, plus a second replica via GPUS2;
+# each replica's GPUs come from one group (0-3 or 4-7).
 #
 #   PILOT=1 scripts/45_generate_part.sh      # the 20-trace pilot (design §7) -> limo_part_pilot.*
 #   GPUS2=2,3 scripts/45_generate_part.sh    # add a TP=2 replica on GPUs 2-3 (caps set from each KV cache)
@@ -9,8 +10,8 @@
 #   then: .venv-infer/bin/python scripts/36_part_audit.py
 #
 # The rewriter must already be on local disk (REWRITER_DIR). This script deliberately does not
-# download it: an HF model id here would make vLLM fetch ~65 GB into HF_HOME, which on this host
-# is the shared, nearly full /mnt/vault. Download it to the root disk first (design §8).
+# download it: an HF model id here would make vLLM fetch ~65 GB in the middle of a run. Download
+# it into the lab's shared cache ($HF_HUB_CACHE) first and point REWRITER_DIR at its snapshot.
 #
 # Resumable: finished segments are cached in <output>.segments.jsonl, so rerunning after an
 # interruption only rewrites what is missing.
@@ -45,9 +46,8 @@ PORT2="${PORT2:-8004}"
 # saturated without vLLM preempting requests, which would waste work. Override with CAPS=a,b.
 TOKENS_PER_REQUEST="${TOKENS_PER_REQUEST:-1600}"
 
-for g in "$GPUS" "$GPUS2"; do
-  case ",$g," in *",0,"*|*",1,"*) echo "GPUs 0 and 1 are reserved -- refusing $g"; exit 1;; esac
-done
+source scripts/gpu_env.sh
+for g in "$GPUS" "$GPUS2"; do [[ -n "$g" ]] && require_one_group "$g"; done
 if [[ ! -f "$REWRITER_DIR/config.json" ]]; then
   echo "rewriter not found at $REWRITER_DIR (no config.json)."
   echo "Download Qwen/Qwen2.5-32B-Instruct there first (~65 GB, root disk). See design doc §8."

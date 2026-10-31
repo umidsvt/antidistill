@@ -632,6 +632,36 @@ and MATH C sequential have not run (their GPU was held by an orphaned vLLM proce
   than the margin: on seed 123, necessity fails at levels B and C for GSM8K and at level B for MATH even against U_ℓ.
 - Seeds 124–125 run the recipe that won on seed 123 where both have run (GSM8K C: mix; MATH B: mix).
 
+**Stopped by the machine rebuild (2026-10-29).** MATH C mix was running and GSM8K B sequential and MATH C sequential
+were waiting; all setup-2 outputs, including the solution files these students train on, were deleted. The seed-123
+results above stay as recorded.
+
+## 12. Regenerating setup 2 after the machine rebuild (fixed 2026-10-31, before any result; go-ahead from the user)
+
+**Why.** The rebuild deleted every setup-2 output, including the teacher and Solo solution files that the combination
+students of §11 train on. Re-running the grid regenerates them and checks the rebuilt environment against the recorded
+numbers.
+
+**What is run.** The unchanged configs `configs/setup2/{gsm8k,math}_{U,solo_l3i,solo_q7i}_s{123,124,125}.yaml` (18
+distillation runs) and the untrained student for each dataset and seed (6 runs), with the same code, the same three
+patches and `.venv-dg` installed from `scripts/env_dg.lock.txt`. One GPU per job on GPUs 0–3, with
+`scripts/33_setup2_pool.sh` and the job list `outputs/setup2/regen_jobs.txt`. A smoke run comes first
+(`configs/setup2/smoke.yaml`, 48 problems): it only checks that the pipeline runs end to end and has no threshold.
+Differences from the first runs: the host (driver 615.71 and CUDA 13.4 instead of 580.95 and 13.0) and the CPU and
+memory pinning of each job (`scripts/gpu_env.sh`). Nothing in the recipe changes. Sampling at temperature 0.6 need not
+reproduce the lost solutions token for token.
+
+**Rule (reproduction).** For each dataset, and for each of U, Solo B, Solo C and the untrained student, the new 3-seed
+mean must lie within 1.5 points (GSM8K-Platinum, 1,209 problems) or 1.0 point (MATH, 5,000 problems) of the recorded
+mean (§9.1, §9.3, §9.4). Each solution writer's own test accuracy must lie within 1.0 point of its recorded mean. The
+tolerances are about twice the standard error of a 3-seed mean on each test set.
+- **All within:** the environment reproduces the setup. The recorded numbers stay in the paper unchanged, and the
+  regenerated runs are reported as a reproduction, with the §7 necessity verdicts recomputed on them. The regenerated
+  solution files become the inputs of the combination students. Those students are compared only with the U and Solo
+  students trained on the same regenerated files, never with the recorded ones. They need their own go-ahead.
+- **Any mean outside:** stop and report it. Nothing is built on the regenerated files until the cause is found and the
+  authors decide. The recorded numbers are not replaced.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

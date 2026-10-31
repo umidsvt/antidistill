@@ -2,7 +2,7 @@
 """Setup 3 pilot (results/m8_audit_design.md §10): how often does the attacker's own model fail DeepMath's hardest
 problems that DeepSeek-R1 solves?
 
-    CUDA_VISIBLE_DEVICES=2 HF_HOME=/mnt/vault/huggingface_cache .venv-dg/bin/python scripts/34_setup3_pilot.py
+    CUDA_VISIBLE_DEVICES=2 .venv-dg/bin/python scripts/34_setup3_pilot.py
 
 Writes outputs/setup3/pilot.json (per problem) and prints the summary.
 """

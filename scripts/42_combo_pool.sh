@@ -5,8 +5,9 @@
 #   GPUS="6 7" JOBS=outputs/setup2_combo/jobs_s123.txt setsid nohup scripts/42_combo_pool.sh > logs/setup2_combo.log 2>&1 < /dev/null & disown
 set -uo pipefail
 cd "$(dirname "$0")/.."
+source scripts/gpu_env.sh
 export PYTHONPATH=third_party/ext/distillation-game/src HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
-       HF_HOME=/mnt/vault/huggingface_cache TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+       TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 PY=.venv-dg/bin/python; O=outputs/setup2_combo; JOBS=${JOBS:?job file}; LOCKS=$O/locks; mkdir -p $LOCKS
 SETUP=(--max-length 2048 --micro-batch 6 --accum 4)   # the setup's own training settings
 ts() { date '+%F %T'; }
@@ -21,12 +22,12 @@ run_job() {  # gpu ds seed level recipe
   [[ -f $teacher && -f $own ]] || { echo "[$(ts)] $name: missing $teacher or $own"; return 1; }
   wait_free $g; echo "[$(ts)] START $name on GPU $g"
   if [[ $rc == mix ]]; then
-    CUDA_VISIBLE_DEVICES=$g $PY scripts/dg_train_from_traces.py --config $cfg --traces "$own" "$teacher" --out $d \
+    CUDA_VISIBLE_DEVICES=$g $(pin $g) $PY scripts/dg_train_from_traces.py --config $cfg --traces "$own" "$teacher" --out $d \
       "${SETUP[@]}" --eval --no-save > $log 2>&1
   else
-    [[ -f $d/stage1/merged/config.json ]] || CUDA_VISIBLE_DEVICES=$g $PY scripts/dg_train_from_traces.py --config $cfg \
+    [[ -f $d/stage1/merged/config.json ]] || CUDA_VISIBLE_DEVICES=$g $(pin $g) $PY scripts/dg_train_from_traces.py --config $cfg \
       --traces "$own" --out $d/stage1 "${SETUP[@]}" > $log 2>&1
-    [[ -f $d/stage1/merged/config.json ]] && CUDA_VISIBLE_DEVICES=$g $PY scripts/dg_train_from_traces.py --config $cfg \
+    [[ -f $d/stage1/merged/config.json ]] && CUDA_VISIBLE_DEVICES=$g $(pin $g) $PY scripts/dg_train_from_traces.py --config $cfg \
       --traces "$teacher" --init $d/stage1/merged --out $d "${SETUP[@]}" --eval --no-save >> $log 2>&1
   fi
   if [[ -f $d/result.json ]]; then
@@ -47,7 +48,6 @@ worker() {  # gpu
   echo "[$(ts)] worker GPU $g: no jobs left"
 }
 
-for g in ${GPUS:?gpus}; do [[ $g == 0 || $g == 1 ]] && { echo "GPUs 0 and 1 are reserved"; exit 1; }; done
 for g in $GPUS; do worker $g & done
 wait
 echo "[$(ts)] COMBO POOL DONE: $JOBS"

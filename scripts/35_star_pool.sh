@@ -6,11 +6,11 @@
 #   GPU=3 SEEDS=123 FEWSHOT=1 setsid nohup scripts/35_star_pool.sh > logs/setup2_star_fewshot_s123.log 2>&1 < /dev/null & disown
 set -uo pipefail
 cd "$(dirname "$0")/.."
+source scripts/gpu_env.sh
 export PYTHONPATH=third_party/ext/distillation-game/src HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
-       HF_HOME=/mnt/vault/huggingface_cache TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+       TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 PY=.venv-dg/bin/python; OUT=outputs/setup2; G="${GPU:-2}"; DS="${DS:-gsm8k}"
 TAG=""; EXTRA=(); [[ -n "${FEWSHOT:-}" ]] && { TAG="fewshot_"; EXTRA=(--fewshot); }
-[[ $G == 0 || $G == 1 ]] && { echo "GPUs 0 and 1 are reserved"; exit 1; }
 ts() { date '+%F %T'; }
 latest() { ls -dt "$OUT"/"$1"_[0-9]* 2>/dev/null | head -1; }
 wait_free() { while (( $(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$G" | tr -d ' ') < 36000 )); do sleep 300; done; }
@@ -24,13 +24,13 @@ for s in ${SEEDS:-123 124 125}; do
     wait_free
     if [[ ! -f "$dir/traces.json" ]]; then
       echo "[$(ts)] START star ${TAG}gen s$s on GPU $G (attempt $i)"
-      CUDA_VISIBLE_DEVICES=$G $PY scripts/dg_star.py --phase gen "${EXTRA[@]}" --config "configs/setup2/${DS}_U_s$s.yaml" \
+      CUDA_VISIBLE_DEVICES=$G $(pin $G) $PY scripts/dg_star.py --phase gen "${EXTRA[@]}" --config "configs/setup2/${DS}_U_s$s.yaml" \
         --teacher-train "$teacher" > "$glog" 2>&1
       echo "[$(ts)] gen s$s: $(tail -n 1 "$glog" | cut -c1-220)"
     fi
     if [[ -f "$dir/traces.json" ]]; then
       echo "[$(ts)] START star ${TAG}train s$s on GPU $G"
-      CUDA_VISIBLE_DEVICES=$G $PY scripts/dg_star.py --phase train "${EXTRA[@]}" --config "configs/setup2/${DS}_U_s$s.yaml" \
+      CUDA_VISIBLE_DEVICES=$G $(pin $G) $PY scripts/dg_star.py --phase train "${EXTRA[@]}" --config "configs/setup2/${DS}_U_s$s.yaml" \
         --teacher-train "$teacher" > "$tlog" 2>&1
     fi
     if [[ -f "$res" ]]; then echo "[$(ts)] DONE  star ${TAG}s$s: $(grep -a 'STaR' "$tlog" | tail -1 | cut -c1-160)"

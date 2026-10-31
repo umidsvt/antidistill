@@ -6,12 +6,12 @@
 # A GPU listed in LATE_GPUS joins only once it has enough free memory (e.g. after another job on it ends).
 set -uo pipefail
 cd "$(dirname "$0")/.."
+source scripts/gpu_env.sh
 export PYTHONPATH=third_party/ext/distillation-game/src HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
-       HF_HOME=/mnt/vault/huggingface_cache TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+       TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 PY=.venv-dg/bin/python; OUT=outputs/setup2; NEED_MIB=${NEED_MIB:-36000}
 JOBS="${JOBS:?JOBS=<job list>}"; LOCKS="${JOBS%.txt}_locks"
 G="${GPUS:?GPUS=...}"; LATE="${LATE_GPUS:-}"
-for g in ${G//,/ } ${LATE//,/ }; do [[ $g == 0 || $g == 1 ]] && { echo "GPUs 0 and 1 are reserved"; exit 1; }; done
 ts() { date '+%F %T'; }
 latest() { ls -dt "$OUT"/"$1"_[0-9]* 2>/dev/null | head -1; }
 free_mib() { nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits -i "$1" | tr -d ' '; }
@@ -22,9 +22,9 @@ done_job() {   # $1 kind, $2 stem
 }
 run_job() {    # $1 gpu, $2 kind, $3 stem
   if [[ $2 == base ]]; then
-    CUDA_VISIBLE_DEVICES=$1 $PY scripts/dg_eval_base.py "configs/setup2/$3.yaml" > "logs/setup2_base_$3.log" 2>&1
+    CUDA_VISIBLE_DEVICES=$1 $(pin $1) $PY scripts/dg_eval_base.py "configs/setup2/$3.yaml" > "logs/setup2_base_$3.log" 2>&1
   else
-    CUDA_VISIBLE_DEVICES=$1 $PY third_party/ext/distillation-game/scripts/run_pipeline.py --config "configs/setup2/$3.yaml" \
+    CUDA_VISIBLE_DEVICES=$1 $(pin $1) $PY third_party/ext/distillation-game/scripts/run_pipeline.py --config "configs/setup2/$3.yaml" \
       > "logs/setup2_$3.log" 2>&1
   fi
 }

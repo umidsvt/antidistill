@@ -12,7 +12,6 @@ cd "$(dirname "$0")/.."
 mkdir -p logs
 G="${GPUS:-6,7}"
 IFS=, read -r GA GB <<<"$G"
-[[ ",$G," == *",0,"* || ",$G," == *",1,"* ]] && { echo "GPUs 0 and 1 are reserved"; exit 1; }
 ts() { date '+%F %T'; }
 BENCH=(math amc aime aime25)
 LOCAL_SAVES="$(cd .. && pwd)/saves_local"

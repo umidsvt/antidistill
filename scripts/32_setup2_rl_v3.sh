@@ -5,8 +5,9 @@
 #   setsid nohup scripts/32_setup2_rl_v3.sh > logs/setup2_rl_v3.log 2>&1 < /dev/null & disown
 set -uo pipefail
 cd "$(dirname "$0")/.."
+source scripts/gpu_env.sh
 export PYTHONPATH=third_party/ext/distillation-game/src HF_HUB_DISABLE_IMPLICIT_TOKEN=1 \
-       HF_HOME=/mnt/vault/huggingface_cache TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+       TOKENIZERS_PARALLELISM=false PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 PY=.venv-dg/bin/python; OUT=outputs/setup2; NEED_MIB=36000
 ts() { date '+%F %T'; }
 latest() { ls -dt "$OUT"/"$1"_[0-9]* 2>/dev/null | head -1; }
@@ -19,7 +20,7 @@ rl() {   # $1 gpu, $2 seed, $3 name, $4 steps, $5 test limit, rest: flags
   for i in 1 2 3; do
     [[ -f $res ]] && break
     wait_free "$g"
-    CUDA_VISIBLE_DEVICES=$g DG_MASTER_PORT=$((29500 + g)) $PY scripts/dg_rl_base.py --config "configs/setup2/gsm8k_U_s$s.yaml" \
+    CUDA_VISIBLE_DEVICES=$g DG_MASTER_PORT=$((29500 + g)) $(pin $g) $PY scripts/dg_rl_base.py --config "configs/setup2/gsm8k_U_s$s.yaml" \
       --teacher-train "$d/teacher/train_standard.json" --vllm-mem 0.5 --name "$name" --max-steps "$steps" \
       --test-limit "$lim" "$@" > "logs/setup2_rl_s${s}_${name}.log" 2>&1
     [[ -f $res ]] || { echo "[$(ts)] attempt $i failed: rl s$s $name"; sleep 600; }

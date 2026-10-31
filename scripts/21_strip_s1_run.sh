@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# S1 marker-stripping: train, then evaluate. GPUs 4-7 ONLY (0-1 are reserved by the user).
+# S1 marker-stripping: train, then evaluate. GPUs 4-7 by default (one group).
 # Eval runs strictly AFTER training on the same GPUs: concurrent train+eval on this host ran
 # ~10x slower (CLAUDE.md §7.3). Then: .venv-infer/bin/python scripts/35_strip_s1_analysis.py
 set -uo pipefail
