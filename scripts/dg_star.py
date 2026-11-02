@@ -200,6 +200,8 @@ def phase_train(a) -> int:
     set_seed(cfg.run.seed)
     _, model, tok = run_distill(cfg=cfg, train_traces=traces, holdout_traces=[], output_dir=out / "student",
                                 device=device, mode="naive", beta_s=1.0)
+    # m8 §13: keep the LoRA so GRPO can continue from this student (scripts/dg_rl_base.py --init-adapter)
+    model.save_pretrained(str(out / "adapter"))
     set_seed(cfg.run.seed)
     compact, _ = generate_teacher_traces(cfg=cfg, dataset=splits["test"], format_prompt=fmt, method_name="standard",
                                          device=device, model=model, tokenizer=tok)

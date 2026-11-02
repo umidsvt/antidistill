@@ -38,14 +38,17 @@ stand and what comes next.
 | 9 | LIMO combination student (7B Solo + LIMO) | §11 | not started | needs 4 GPUs for about 20 hours |
 | 10 | Our own PoE / ADS defended runs | – | not started | only useful in a setup that passes |
 
-## Running now (2026-10-31 00:12, user umid on dspl1)
+## Running now (2026-11-01 16:40): nothing
 
-| What | Script | GPUs | Log | Outputs |
-| --- | --- | --- | --- | --- |
-| setup-2 regeneration (m8 §12): U, Solo B, Solo C for GSM8K and MATH, seeds 123–125, then the untrained student; 24 jobs, MATH first | `scripts/33_setup2_pool.sh`, jobs `outputs/setup2/regen_jobs.txt` | 0–3 | `logs/setup2_regen_pool.log` | `outputs/setup2/<stem>_<stamp>/RESULTS.md`, `outputs/setup2/base_<ds>_s<seed>.json` |
+Level A with RL after self-training (m8 §13, `scripts/46_levelA_star_grpo.sh`) finished on 2026-11-01 at 16:36 and is
+recorded in m8 §13: STaR reproduces (35.2%), GRPO lowers it (30.2%), and level A still passes necessity. The
+regenerated STaR files and adapters are in `outputs/setup2/star_fewshot_gsm8k_s<seed>/`.
 
-The smoke run (`configs/setup2/smoke.yaml`) passed on 2026-10-31: teacher 79.2% on 48 test problems, as on
-2026-10-20. When the pool is done, apply the §12 rule and record the result in m8. The seed-123 combination queue
+The setup-2 regeneration (m8 §12; 24 jobs, `scripts/33_setup2_pool.sh`, `logs/setup2_regen_pool.log`) finished on
+2026-11-01 at 01:24. Every three-seed mean is within the rule and every necessity verdict is unchanged; the result and
+a new observation (Llama-3.2-3B-Instruct has probably trained on the GSM8K and MATH training sets) are recorded in m8
+§12. The regenerated files in `outputs/setup2/*_2026103*` are the inputs for the next runs. The proposed next work is
+`results/plan_2026_11_protection_map.md` (for the authors' meeting of 2026-11-01; nothing approved yet). The seed-123 combination queue
 ended with the machine rebuild, and its job files were lost with the rest of `outputs/`. Every queue waits for free
 GPU memory and retries; finished jobs are skipped on restart. If a GPU stays occupied after its job ended, look for an
 orphaned vLLM engine of our scripts (CLAUDE.md, "Start here").

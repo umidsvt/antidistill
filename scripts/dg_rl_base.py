@@ -34,6 +34,39 @@ from clean_sweep.generation import generate_teacher_traces
 from clean_sweep.generation.core import align_tokenizer_to_model, ensure_chat_template, get_dtype
 from clean_sweep.utils import set_seed
 
+# m8 §14, arm P: a plain-text prompt (no chat template) that a base model can follow. The answer-forcing step of the
+# setup's evaluation looks for the end of the prompt; PLAIN_MARKER is that end for this prompt.
+PLAIN_MARKER = "Answer: Let's think step by step."
+PLAIN_PROMPT = ("Question: {question}\nPlease reason step by step, and put your final answer within \\boxed{{}}.\n"
+                + PLAIN_MARKER)
+FINAL_BOX = re.compile(r"\\boxed\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\s*(?:\\\]|\$)?\s*\.?\s*$")
+
+
+def format_ok(text: str, mode: str, min_words: int = 0) -> bool:
+    """anywhere (v2): any boxed answer; final (v3): exactly one, at the very end; final_reasoned (m8 §14): as final,
+    with at least min_words words of reasoning before it (v3a's policy wrote only a bare boxed number)."""
+    t = text.strip()
+    if mode == "anywhere":
+        return "\\boxed{" in t
+    if t.count("\\boxed{") != 1 or not FINAL_BOX.search(t):
+        return False
+    return mode == "final" or len(t[:t.find("\\boxed{")].split()) >= min_words
+
+
+class PlainPromptTokenizer:
+    """Lets the setup's own evaluation score a student trained on the plain prompt: same sampling and answer forcing,
+    only the prompt text differs (apply_chat_template returns the plain prompt)."""
+
+    def __init__(self, tok):
+        self._tok = tok
+
+    def __getattr__(self, name):
+        return getattr(self._tok, name)
+
+    def apply_chat_template(self, messages, add_generation_prompt=True, truncation=True, max_length=None, **_):
+        question = messages[-1]["content"].strip()
+        return self._tok(PLAIN_PROMPT.format(question=question), truncation=truncation, max_length=max_length)["input_ids"]
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -53,8 +86,15 @@ def main() -> int:
     ap.add_argument("--micro-batch", type=int, default=8, help="samples per forward pass (16 ran out of memory)")
     # v3 (m8 §9.3): v2's "boxed anywhere" bonus was hacked (write \\boxed{ and ramble to the limit); "final" pays only
     # for exactly one boxed answer at the very end of the text, which requires stopping
-    ap.add_argument("--format-mode", choices=["anywhere", "final"], default="anywhere")
+    ap.add_argument("--format-mode", choices=["anywhere", "final", "final_reasoned"], default="anywhere")
+    ap.add_argument("--min-reason-words", type=int, default=20, help="final_reasoned: words of reasoning before the box")
+    ap.add_argument("--prompt-style", choices=["chat", "plain"], default="chat", help="m8 §14: chat = the setup's prompt")
+    ap.add_argument("--save-adapter", action="store_true", help="save the trained LoRA to <out>/adapter")
+    ap.add_argument("--also-eval-chat", action="store_true", help="plain arm: also score with the setup's chat prompt")
     ap.add_argument("--name", default="", help="suffix of the output folder, e.g. v2a")
+    # m8 §13: continue an existing LoRA (e.g. the self-trained student's) instead of starting from the untrained one
+    ap.add_argument("--init-adapter", default="", help="LoRA adapter folder to continue training (default: a new LoRA)")
+    ap.add_argument("--max-completion", type=int, default=0, help="completion tokens during GRPO (default: the setup's)")
     a = ap.parse_args()
 
     # vLLM colocate mode reads the variables a distributed launcher sets; this is a single process.
@@ -70,6 +110,15 @@ def main() -> int:
                                  holdout_size=cfg.data.holdout_size, test_size=cfg.data.test_size)
     fmt = format_prompt_gsm8k if cfg.data.dataset_name == "gsm8k" else format_prompt_math
 
+    tok = ensure_chat_template(AutoTokenizer.from_pretrained(cfg.model.student_tokenizer or cfg.model.student,
+                                                             padding_side="left"))
+
+    def train_prompt(problem: str):
+        if a.prompt_style == "chat":
+            return fmt(problem)
+        # TRL tokenizes prompts without special tokens, so the start token is written out, as the chat template does
+        return (tok.bos_token or "") + PLAIN_PROMPT.format(question=problem.strip())
+
     # The teacher's released answers for exactly these train problems (same seed => same split).
     rows = {r["example_id"]: r for r in json.loads(Path(a.teacher_train).read_text())}
     data, mismatched, no_answer = [], 0, 0
@@ -80,7 +129,7 @@ def main() -> int:
             continue
         ans = r.get("extracted_answer") or ""
         no_answer += not ans
-        data.append({"prompt": fmt(ex["problem"]), "teacher_answer": ans})
+        data.append({"prompt": train_prompt(ex["problem"]), "teacher_answer": ans})
     if mismatched:
         raise SystemExit(f"{mismatched} train problems do not match the teacher file: wrong seed or file")
     print(f"train prompts: {len(data)} ({no_answer} without a teacher answer: their reward is always 0)")
@@ -92,28 +141,21 @@ def main() -> int:
             scores.append(1.0 if ans and is_correct_gsm8k(text, f"\\boxed{{{ans}}}") else 0.0)
         return scores
 
-    final_box = re.compile(r"\\boxed\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\s*(?:\\\]|\$)?\s*\.?\s*$")
-
     def reward_boxed(prompts, completions, **_):
-        out = []
-        for c in completions:
-            t = (c[0]["content"] if isinstance(c, list) else c).strip()
-            if a.format_mode == "anywhere":
-                out.append(1.0 if "\\boxed{" in t else 0.0)
-            else:
-                out.append(1.0 if t.count("\\boxed{") == 1 and final_box.search(t) else 0.0)
-        return out
+        return [1.0 if format_ok(c[0]["content"] if isinstance(c, list) else c, a.format_mode, a.min_reason_words)
+                else 0.0 for c in completions]
 
     funcs, weights = [reward_teacher_answer], [1.0]
     if a.format_reward > 0:
         funcs.append(reward_boxed); weights.append(a.format_reward)
 
-    tok = ensure_chat_template(AutoTokenizer.from_pretrained(cfg.model.student_tokenizer or cfg.model.student,
-                                                             padding_side="left"))
     model = AutoModelForCausalLM.from_pretrained(cfg.model.student, torch_dtype=get_dtype(cfg.model.torch_dtype),
                                                  attn_implementation=cfg.model.attn_implementation)
     tok = align_tokenizer_to_model(tok, model)
-    lora = LoraConfig(r=cfg.distill.lora_r, lora_alpha=cfg.distill.lora_alpha, lora_dropout=cfg.distill.lora_dropout,
+    if a.init_adapter:
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, a.init_adapter, is_trainable=True)
+    lora = None if a.init_adapter else LoraConfig(r=cfg.distill.lora_r, lora_alpha=cfg.distill.lora_alpha, lora_dropout=cfg.distill.lora_dropout,
                       target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
                       bias="none", task_type="CAUSAL_LM")
     gen_per_step = a.num_generations * a.prompts_per_step
@@ -123,7 +165,8 @@ def main() -> int:
         num_train_epochs=a.epochs, max_steps=a.max_steps,
         per_device_train_batch_size=a.micro_batch, gradient_accumulation_steps=gen_per_step // a.micro_batch,
         num_generations=a.num_generations, generation_batch_size=gen_per_step,
-        max_prompt_length=cfg.generation.max_prompt_tokens, max_completion_length=cfg.generation.max_new_tokens,
+        max_prompt_length=cfg.generation.max_prompt_tokens,
+        max_completion_length=a.max_completion or cfg.generation.max_new_tokens,
         temperature=a.temperature, top_p=1.0, reward_weights=weights,
         use_vllm=True, vllm_mode="colocate", vllm_gpu_memory_utilization=a.vllm_mem,
         gradient_checkpointing=True, gradient_checkpointing_kwargs={"use_reentrant": False},
@@ -141,21 +184,53 @@ def main() -> int:
     torch.cuda.empty_cache()
     student = trainer.model
     student.eval()
+    if a.save_adapter:
+        student.save_pretrained(str(out / "adapter"))
     test = splits["test"].select(range(a.test_limit)) if a.test_limit else splits["test"]
-    set_seed(cfg.run.seed)
-    compact, _ = generate_teacher_traces(cfg=cfg, dataset=test, format_prompt=fmt, method_name="standard",
-                                         device=torch.device("cuda"), model=student, tokenizer=tok)
-    acc = sum(1 for r in compact if r["correct"]) / max(len(compact), 1)
-    (out / "test_rl.json").write_text(json.dumps(compact, indent=1))
+
+    def score(eval_tok, path):
+        set_seed(cfg.run.seed)
+        rows_, _ = generate_teacher_traces(cfg=cfg, dataset=test, format_prompt=fmt, method_name="standard",
+                                           device=torch.device("cuda"), model=student, tokenizer=eval_tok)
+        path.write_text(json.dumps(rows_, indent=1))
+        return rows_, sum(1 for r in rows_ if r["correct"]) / max(len(rows_), 1)
+
+    acc_chat = None
+    if a.prompt_style == "plain":
+        from clean_sweep.generation import core as gen_core
+        gen_core.RESPONSE_STRINGS["plain"] = PLAIN_MARKER   # where answer forcing finds the end of the prompt
+        compact, acc = score(PlainPromptTokenizer(tok), out / "test_rl.json")
+        if a.also_eval_chat:
+            _, acc_chat = score(tok, out / "test_rl_chatprompt.json")
+    else:
+        compact, acc = score(tok, out / "test_rl.json")
     res = {"student": cfg.model.student, "seed": cfg.run.seed, "dataset": cfg.data.dataset_name, "n_test": len(compact),
-           "accuracy": acc, "train_prompts": len(data), "no_teacher_answer": no_answer, "train_seconds": round(train_s),
+           "accuracy": acc, "prompt_style": a.prompt_style, "accuracy_chat_prompt": acc_chat,
+           "min_reason_words": a.min_reason_words,
+           "train_prompts": len(data), "no_teacher_answer": no_answer, "train_seconds": round(train_s),
            "lr": a.lr, "num_generations": a.num_generations, "prompts_per_step": a.prompts_per_step,
            "epochs": a.epochs, "max_steps": a.max_steps, "format_reward": a.format_reward,
-           "temperature": a.temperature, "name": a.name, "format_mode": a.format_mode}
+           "temperature": a.temperature, "name": a.name, "format_mode": a.format_mode,
+           "init_adapter": a.init_adapter, "max_completion": a.max_completion or cfg.generation.max_new_tokens}
     (out / "result.json").write_text(json.dumps(res, indent=1))
-    print(f"RL from the untrained student, {cfg.data.dataset_name} test (seed {cfg.run.seed}): {acc:.4f} (n={len(compact)}) -> {out}")
+    start = f"the adapter {a.init_adapter}" if a.init_adapter else "the untrained student"
+    print(f"RL from {start}, {cfg.data.dataset_name} test (seed {cfg.run.seed}): {acc:.4f} (n={len(compact)}) -> {out}")
     return 0
 
 
+def hard_exit(rc: int) -> None:
+    """Exit without waiting on vLLM 0.8.5, which can hang at interpreter exit (CLAUDE.md rule 6); stop this
+    process's own vLLM engine processes first so none is left holding the GPU."""
+    import sys
+    sys.stdout.flush(); sys.stderr.flush()
+    try:
+        import psutil
+        for child in psutil.Process().children(recursive=True):
+            child.kill()
+    except Exception:
+        pass
+    os._exit(rc)
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    hard_exit(main())

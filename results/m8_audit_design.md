@@ -662,6 +662,148 @@ tolerances are about twice the standard error of a 3-seed mean on each test set.
 - **Any mean outside:** stop and report it. Nothing is built on the regenerated files until the cause is found and the
   authors decide. The recorded numbers are not replaced.
 
+**Result (complete 2026-11-01 01:24; smoke run passed 2026-10-31 00:09).** All 24 jobs ran on the first attempt.
+Numbers recomputed from the per-problem files (`outputs/setup2/<run>/student/teacher_standard/test_naive_beta_1.0.json`,
+`.../teacher/{test,train}_standard.json`, `outputs/setup2/base_<dataset>_s<seed>.json`), not from logs.
+
+| dataset | student | rerun, seeds 123 / 124 / 125 | rerun mean | recorded mean | difference | within |
+| --- | --- | --- | --- | --- | --- | --- |
+| GSM8K-Platinum | untrained | 0.41 / 0.66 / 0.66% | 0.58% | 0.74% | −0.17 | yes (1.5) |
+| | U | 59.31 / 60.22 / 59.80% | 59.77% | 59.00% | +0.77 | yes |
+| | Solo B (Llama-3.2-3B-Instruct) | 61.62 / 57.82 / 59.80% | 59.75% | 59.44% | +0.31 | yes |
+| | Solo C (Qwen2.5-7B-Instruct) | 60.05 / 58.81 / 57.82% | 58.89% | 59.83% | −0.94 | yes |
+| MATH | untrained | 0.78 / 1.04 / 0.72% | 0.85% | 0.77% | +0.08 | yes (1.0) |
+| | U | 15.30 / 15.42 / 15.70% | 15.47% | 14.99% | +0.48 | yes |
+| | Solo B | 15.44 / 15.34 / 15.56% | 15.45% | 14.87% | +0.57 | yes |
+| | Solo C | 17.46 / 17.18 / 18.14% | 17.59% | 17.34% | +0.25 | yes |
+
+Each writer's own test accuracy, rerun mean vs recorded mean (tolerance 1.0): GSM8K teacher 87.15 vs 87.17, Qwen2.5-7B-
+Instruct 94.18 vs 94.20, Llama-3.2-3B-Instruct 81.69 vs 81.30; MATH teacher 63.07 vs 63.10, Qwen2.5-7B-Instruct 73.11
+vs 73.10, Llama-3.2-3B-Instruct 47.95 vs 48.00. All within.
+
+- **By the rule, all within: the rebuilt environment reproduces setup 2.** The recorded numbers stay in the paper; the
+  rerun is reported as a reproduction. The regenerated solution files are now the inputs for the combination students
+  (their go-ahead is still pending).
+- **Necessity verdicts recomputed on the rerun (§7 rule): unchanged.** GSM8K, margin (59.77 − 0.58)/4 = 14.8: U − Solo
+  B = −2.3, +2.4, 0.0 (mean +0.0, 95% interval −5.8 to +5.9); U − Solo C = −0.7, +1.4, +2.0 (mean +0.9, −2.7 to +4.5).
+  MATH, margin (15.47 − 0.85)/4 = 3.7: U − Solo B = −0.1, +0.1, +0.1 (mean +0.0); U − Solo C = −2.2, −1.8, −2.4 (mean
+  −2.1, −3.0 to −1.3; Solo C above U on every seed). Necessity fails at levels B and C on both datasets.
+- **New observation: Llama-3.2-3B-Instruct solves far more training problems than test problems.** The pipeline also
+  scores each writer on the training problems it writes solutions for (`teacher/train_standard.json`):
+
+  | writer | GSM8K train (5,238) | GSM8K-Platinum test | MATH train (5,000) | MATH test |
+  | --- | --- | --- | --- | --- |
+  | R1-Distill-Qwen-7B (teacher) | 87.9% | 87.2% | 62.0% | 63.1% |
+  | Qwen2.5-7B-Instruct | 95.1% | 94.2% | 76.0% | 73.1% |
+  | Llama-3.2-3B-Instruct | **89.6%** | 81.7% | **71.5%** | 48.0% |
+
+  Means over the three seeds. The other two writers score within 3 points on both splits; Llama-3.2-3B-Instruct is
+  8 points higher on GSM8K's training problems and 23.5 points higher on MATH's. It has most likely been trained on
+  both training sets. Consequence for the paper: on the problems the student is trained on, this writer is *not*
+  weaker than the teacher (GSM8K 89.6% vs 87.9%; MATH 71.5% vs 62.0%), so the sentences that Solo B matches U although
+  its writer "is less accurate than the teacher" (main.tex, GSM8K) and "solves 15 points fewer test problems" (MATH)
+  must report training-problem accuracy too. The verdicts do not change; Solo B is still a level-B attacker's student.
+  Any later setup should measure writer–teacher gaps on the training problems (`results/plan_2026_11_protection_map.md`
+  §3).
+
+## 13. Level A with RL after self-training (fixed 2026-11-01, before any result; go-ahead from the user)
+
+**Why.** Our four RL recipes from the untrained student did not learn (§9.3): it almost never ends with a correct boxed
+answer, so GRPO has nothing to reinforce. A labmate reports 62.9% on GSM8K-Platinum (one run, seed 456, about ±2 points
+between runs) with SFT then GRPO: SFT on solutions written by Qwen2.5-3B-Instruct and filtered by the PoE-defended
+teacher's final answers (59.3%), then GRPO rewarded by those answers. **That copier owns an open model
+(Qwen2.5-3B-Instruct), so it is not level A** (§9.3: level A owns only the student). The level-A version keeps their
+SFT-then-GRPO structure and replaces their step 1 by the student's own few-shot self-training (§9.3), which uses only the
+teacher's released answers.
+
+**What is run.** Seeds 123–125, one GPU each (group 0–3), `scripts/46_levelA_star_grpo.sh`:
+1. Few-shot STaR exactly as §9.3 (`scripts/dg_star.py --fewshot`, teacher answers from the regenerated U runs of §12),
+   now also saving its LoRA adapter. This regenerates the files lost in the rebuild.
+2. GRPO continuing that same LoRA (`scripts/dg_rl_base.py --init-adapter`): reward 1 when the boxed answer matches the
+   undefended teacher's released answer, else 0; 8 problems × 8 samples per step, temperature 1.0, top-p 1.0, prompts up
+   to 512 tokens, completions up to 512 tokens, 300 steps, learning rate 2e-5 (cosine, 3% warm-up), no KL penalty.
+   Scored with the setup's own evaluation, as U. Differences from the labmate's recipe besides step 1: TRL 0.19.1 with
+   vLLM 0.8.5 (theirs 0.23), its default loss (`bnpo`), the cosine schedule, and our setup's evaluation.
+3. A smoke test first (a few problems and steps), which only checks that the pipeline runs and has no threshold.
+
+**Rule.**
+- **STaR reproduction (gate):** the regenerated STaR 3-seed mean must lie within 1.5 points of the recorded 34.3%
+  (§9.3, tolerance of §12). If not: stop and report; the GRPO result is not read.
+- **A failed recipe is not a result:** if GRPO collapses (mean completion under 20 tokens over the last 50 steps, or
+  correctness reward falling below its value at step 0), it is reported as a failed recipe, as in §9.3.
+- **Necessity at level A** (§7, compared with the regenerated U of the same seed, §12; margin a quarter of U's gain,
+  (59.77 − 0.58)/4 = 14.8): R_A per seed = max(STaR, STaR + GRPO).
+  - **Passes** if the paired U − R_A has a 3-seed mean above 14.8 and its 95% interval excludes 0: level A still needs
+    the teacher, now against a stronger copier, and R_A replaces 34.3% in the paper.
+  - **Fails** if the mean is 14.8 or less: the GSM8K setup then cannot show protection at any level of the ladder; the
+    paper's level-A pass is withdrawn and reported as such.
+- The labmate's own recipe (with Qwen2.5-3B-Instruct) is a level-B copier and is not part of this rule.
+
+**Result (complete 2026-11-01 16:36).** Smoke test passed after one fix (vLLM needs `--vllm-mem 0.5` next to the
+training model, as in `scripts/32_setup2_rl_v3.sh`; the first attempt stopped at engine start, before any training).
+GSM8K-Platinum, 1,209 problems, from the per-problem files (`test_star.json`, `test_rl.json`):
+
+| seed | STaR (regenerated) | STaR + GRPO | GRPO − STaR | U (regenerated, §12) | U − R_A |
+| --- | --- | --- | --- | --- | --- |
+| 123 | 35.81% | 32.42% | −3.4 | 59.31% | +23.5 |
+| 124 | 34.41% | 28.87% | −5.5 | 60.22% | +25.8 |
+| 125 | 35.48% | 29.28% | −6.2 | 59.80% | +24.3 |
+| mean | **35.24%** | **30.19%** | **−5.1** (95% interval −8.7 to −1.4) | 59.77% | **+24.5** (21.6 to 27.5) |
+
+STaR kept 3,187 / 3,148 / 3,203 of its own solutions (recorded 3,123 / 3,141 / 3,168) and left 34 / 35 / 25 problems
+unsolved. GRPO training: correctness reward (8 samples at temperature 1.0 on 8 new training problems per step, so
+noisy) first logged 0.28 / 0.35 / 0.33, mean over the last 50 steps 0.48 / 0.44 / 0.49; mean completion length over
+the last 50 steps 118 / 89 / 124 tokens.
+
+- **STaR reproduction gate: passes** (35.2% vs 34.3%, +0.9, tolerance 1.5).
+- **No collapse** by the rule (lengths far above 20 tokens; reward not below its first value), so GRPO counts as a run
+  recipe, and **it lowers the test score on every seed** (−5.1 points on average) although its reward on training
+  problems rises a little. The cause is not known. Candidates, none tested: our TRL 0.19.1 (`bnpo` loss) against the
+  labmate's 0.23; the gap between training (temperature 1.0, 512 tokens) and evaluation (the setup's sampling with
+  answer forcing); and the weaker starting student (35% vs their 59%). The GRPO adapters were not saved, so the
+  policies cannot be re-scored.
+- **Necessity at level A: passes.** R_A = max(STaR, STaR + GRPO) = STaR on every seed; U − R_A = +24.5 (interval 21.6 to
+  27.5) against the margin of 14.8. The GSM8K setup still needs the teacher against a copier who owns only the student,
+  and the labmate's GRPO step does not change that here.
+- **Paper (decision for the authors):** the rule says R_A replaces 34.3%, but R_A turned out to be the regenerated run
+  of the same self-training. Proposed: keep 34.3% next to the recorded U (59.0%), as §12 does for the other students,
+  and report the rerun (35.2%) and the GRPO attempt (30.2%) in Appendix B.
+
+## 14. Level A by GRPO alone from the base student (fixed 2026-11-01, before any result; go-ahead from the user)
+
+**Why.** A labmate asks for the simplest level-A copier: GRPO only, from base Llama-3.2-3B, no SFT, the student
+reasoning freely, rewarded when its final answer matches the teacher's released answer, plus a format reward. Our v1–v3
+(§9.3) were this recipe and did not learn: under the setup's chat prompt the base model almost never ends with a correct
+answer (617 of 5,238 problems solved in 8 tries, §9.3), and both format rewards were gamed (v2: `\boxed{` then rambling;
+v3a: a bare `\boxed{n}`). Javaheri et al. (2026, Appendix A) report 40.7% on GSM8K for the same recipe family (GRPO only
+from base Llama-3.2-3B, SimpleRL-Zoo, a plain-text prompt, batch 1,024, rewarded by correct answers). A level-A copier
+near 45% on our test would remove the setup's only pass (§13: U − R_A = 24.5 against a margin of 14.8).
+
+**What is run.** `scripts/47_levelA_grpo_only.sh`, GPUs 4–7, two prompt arms that differ only in the prompt:
+- **Arm C:** the setup's chat prompt (as v1–v3).
+- **Arm P:** a plain-text prompt, no chat template: `Question: {question}\nPlease reason step by step, and put your
+  final answer within \boxed{}.\nAnswer: Let's think step by step.`
+- **Both:** a new LoRA on base Llama-3.2-3B (rank 128, the capacity of every student here); reward 1.0 when the answer
+  matches the teacher's released answer (the setup's checker), plus 0.2 when the completion has exactly one boxed answer,
+  ends with it, and has at least 20 words of reasoning before it (closes both earlier hacks); GRPO with 8 problems × 8
+  samples, temperature 1.0, top-p 1.0, completions up to 512 tokens, learning rate 2e-5 (cosine, 3% warm-up), no KL,
+  TRL 0.19.1 with vLLM 0.8.5. Adapters are saved.
+- **Prompt check first** (descriptive, no threshold): the base model's per-sample and 8-try success against the teacher's
+  answers on 512 training problems under each prompt.
+- **Pilot:** seed 123, 60 steps per arm, scored on 300 test problems. An arm passes if (i) its correctness reward over
+  steps 41–60 averages at least 0.05, (ii) its mean completion length over steps 41–60 is at least 50 tokens, and (iii)
+  it scores at least 5% on the 300 problems. Passing arms run 600 steps (one pass over 4,800 problems) for seeds
+  123–125. If no arm passes: reported as failed recipes; no fallback without the authors.
+- **Scoring:** 1,209 test problems, the setup's sampling and answer forcing, each student with the prompt it was trained
+  with (C: the setup's evaluation; P: the same with the plain prompt). Arm P is also scored with the chat prompt
+  (reported only).
+
+**Rule (necessity at level A, as §13).** R_A per seed = the best of STaR (§13) and the passing GRPO-only arms; compared
+with the regenerated U of the same seed, margin 14.8.
+- **Passes** if the 3-seed mean of U − R_A is above 14.8 and its 95% interval excludes 0: level A still needs the teacher.
+- **Fails** otherwise: the GSM8K setup cannot show protection at any level of the ladder, and the paper's level-A pass is
+  withdrawn.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
