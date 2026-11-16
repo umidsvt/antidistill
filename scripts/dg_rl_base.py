@@ -53,6 +53,16 @@ def format_ok(text: str, mode: str, min_words: int = 0) -> bool:
     return mode == "final" or len(t[:t.find("\\boxed{")].split()) >= min_words
 
 
+class ChunkedGRPOTrainer(GRPOTrainer):
+    """TRL 0.19.1 computes the reference model's log-probabilities (needed when beta > 0) without a batch size, i.e.
+    over the whole generation batch at once (32 samples x 2,048 tokens x 128k vocabulary in fp32 = 31 GiB; m8 §15
+    smoke test). Every other call passes per_device_train_batch_size; this applies it to all calls."""
+
+    def _get_per_token_logps(self, model, input_ids, attention_mask, logits_to_keep, batch_size=None):
+        return super()._get_per_token_logps(model, input_ids, attention_mask, logits_to_keep,
+                                            batch_size or self.args.per_device_train_batch_size)
+
+
 class PlainPromptTokenizer:
     """Lets the setup's own evaluation score a student trained on the plain prompt: same sampling and answer forcing,
     only the prompt text differs (apply_chat_template returns the plain prompt)."""
@@ -62,6 +72,9 @@ class PlainPromptTokenizer:
 
     def __getattr__(self, name):
         return getattr(self._tok, name)
+
+    def __call__(self, *args, **kwargs):   # answer forcing tokenizes the forced texts directly
+        return self._tok(*args, **kwargs)
 
     def apply_chat_template(self, messages, add_generation_prompt=True, truncation=True, max_length=None, **_):
         question = messages[-1]["content"].strip()
@@ -91,10 +104,22 @@ def main() -> int:
     ap.add_argument("--prompt-style", choices=["chat", "plain"], default="chat", help="m8 §14: chat = the setup's prompt")
     ap.add_argument("--save-adapter", action="store_true", help="save the trained LoRA to <out>/adapter")
     ap.add_argument("--also-eval-chat", action="store_true", help="plain arm: also score with the setup's chat prompt")
+    ap.add_argument("--eval-only", action="store_true", help="no training: score the adapter given by --init-adapter")
     ap.add_argument("--name", default="", help="suffix of the output folder, e.g. v2a")
     # m8 §13: continue an existing LoRA (e.g. the self-trained student's) instead of starting from the untrained one
     ap.add_argument("--init-adapter", default="", help="LoRA adapter folder to continue training (default: a new LoRA)")
     ap.add_argument("--max-completion", type=int, default=0, help="completion tokens during GRPO (default: the setup's)")
+    # m8 §15 (option B): Javaheri et al.'s stabilizers (SimpleRL-Zoo) ported to this script
+    ap.add_argument("--reward-mode", choices=["bonus", "mix"], default="bonus",
+                    help="bonus: 1 if correct (+ optional format bonus); mix (SimpleRL-Zoo): +1 correct and boxed, "
+                         "-0.5 boxed but wrong, -1 without a boxed answer")
+    ap.add_argument("--beta", type=float, default=0.0, help="KL penalty to the starting model (SimpleRL-Zoo: 1e-4)")
+    ap.add_argument("--lr-schedule", choices=["cosine", "constant"], default="cosine")
+    ap.add_argument("--save-every", type=int, default=0, help="save the adapter every N steps (checkpoint selection)")
+    ap.add_argument("--holdout-select", type=int, default=0,
+                    help="hold out the last N training problems; pick the saved adapter that scores best on them "
+                         "against the teacher's answers")
+    ap.add_argument("--greedy-test", action="store_true", help="also score the kept adapter greedily (reported only)")
     a = ap.parse_args()
 
     # vLLM colocate mode reads the variables a distributed launcher sets; this is a single process.
@@ -129,10 +154,19 @@ def main() -> int:
             continue
         ans = r.get("extracted_answer") or ""
         no_answer += not ans
-        data.append({"prompt": train_prompt(ex["problem"]), "teacher_answer": ans})
+        data.append({"prompt": train_prompt(ex["problem"]), "teacher_answer": ans,
+                     "_id": ex["example_id"], "_problem": ex["problem"]})
     if mismatched:
         raise SystemExit(f"{mismatched} train problems do not match the teacher file: wrong seed or file")
-    print(f"train prompts: {len(data)} ({no_answer} without a teacher answer: their reward is always 0)")
+    # m8 §15: training problems held out for checkpoint selection, scored against the TEACHER's answers (a level-A
+    # copier has nothing else); they are not trained on
+    held = data[-a.holdout_select:] if a.holdout_select else []
+    data = data[:-a.holdout_select] if a.holdout_select else data
+    held_ds = Dataset.from_list([{"example_id": h["_id"], "problem": h["_problem"],
+                                  "solution": f"\\boxed{{{h['teacher_answer']}}}"} for h in held if h["teacher_answer"]])
+    data = [{"prompt": d["prompt"], "teacher_answer": d["teacher_answer"]} for d in data]
+    print(f"train prompts: {len(data)} ({no_answer} without a teacher answer: their reward is always 0); "
+          f"held out for checkpoint selection: {len(held_ds)}")
 
     def reward_teacher_answer(prompts, completions, teacher_answer, **_):
         scores = []
@@ -145,9 +179,22 @@ def main() -> int:
         return [1.0 if format_ok(c[0]["content"] if isinstance(c, list) else c, a.format_mode, a.min_reason_words)
                 else 0.0 for c in completions]
 
-    funcs, weights = [reward_teacher_answer], [1.0]
-    if a.format_reward > 0:
-        funcs.append(reward_boxed); weights.append(a.format_reward)
+    def reward_mix(prompts, completions, teacher_answer, **_):
+        out_ = []
+        for c, ans in zip(completions, teacher_answer):
+            t = c[0]["content"] if isinstance(c, list) else c
+            if "\\boxed{" not in t:
+                out_.append(-1.0)
+            else:
+                out_.append(1.0 if ans and is_correct_gsm8k(t, f"\\boxed{{{ans}}}") else -0.5)
+        return out_
+
+    if a.reward_mode == "mix":   # correctness is still logged, with weight 0
+        funcs, weights = [reward_mix, reward_teacher_answer], [1.0, 0.0]
+    else:
+        funcs, weights = [reward_teacher_answer], [1.0]
+        if a.format_reward > 0:
+            funcs.append(reward_boxed); weights.append(a.format_reward)
 
     model = AutoModelForCausalLM.from_pretrained(cfg.model.student, torch_dtype=get_dtype(cfg.model.torch_dtype),
                                                  attn_implementation=cfg.model.attn_implementation)
@@ -161,7 +208,8 @@ def main() -> int:
     gen_per_step = a.num_generations * a.prompts_per_step
     args = GRPOConfig(
         output_dir=str(out / "trainer"), seed=cfg.run.seed, bf16=True,
-        learning_rate=a.lr, lr_scheduler_type="cosine", warmup_ratio=0.03, weight_decay=0.0,
+        learning_rate=a.lr, warmup_ratio=0.03, weight_decay=0.0, beta=a.beta,
+        lr_scheduler_type="constant_with_warmup" if a.lr_schedule == "constant" else "cosine",
         num_train_epochs=a.epochs, max_steps=a.max_steps,
         per_device_train_batch_size=a.micro_batch, gradient_accumulation_steps=gen_per_step // a.micro_batch,
         num_generations=a.num_generations, generation_batch_size=gen_per_step,
@@ -172,40 +220,78 @@ def main() -> int:
         gradient_checkpointing=True, gradient_checkpointing_kwargs={"use_reentrant": False},
         logging_steps=5, save_strategy="no", report_to=[], remove_unused_columns=False,
     )
-    trainer = GRPOTrainer(model=model, reward_funcs=funcs, args=args,
-                          train_dataset=Dataset.from_list(data), processing_class=tok, peft_config=lora)
-    t0 = time.time()
-    trainer.train()
-    train_s = time.time() - t0
-    (out / "train_log.json").write_text(json.dumps(trainer.state.log_history, indent=1))
+    if a.eval_only:
+        if not a.init_adapter:
+            raise SystemExit("--eval-only needs --init-adapter")
+        student, train_s = model.to("cuda"), 0.0
+    else:
+        from transformers import TrainerCallback
 
-    # Score with the Distillation Game's own evaluation, as for its distilled students.
-    del trainer.llm  # free the colocated vLLM engine before HF generation
-    torch.cuda.empty_cache()
-    student = trainer.model
+        class SaveAdapter(TrainerCallback):   # m8 §15: adapters for checkpoint selection
+            def on_step_end(self, args_, state, control, model=None, **_):
+                if a.save_every and model is not None and state.global_step % a.save_every == 0:
+                    model.save_pretrained(str(out / f"ckpt_{state.global_step:04d}"))
+
+        trainer = ChunkedGRPOTrainer(model=model, reward_funcs=funcs, args=args, callbacks=[SaveAdapter()],
+                              train_dataset=Dataset.from_list(data), processing_class=tok, peft_config=lora)
+        t0 = time.time()
+        trainer.train()
+        train_s = time.time() - t0
+        (out / "train_log.json").write_text(json.dumps(trainer.state.log_history, indent=1))
+        # Score with the Distillation Game's own evaluation, as for its distilled students.
+        del trainer.llm  # free the colocated vLLM engine before HF generation
+        torch.cuda.empty_cache()
+        student = trainer.model
+        if a.save_adapter:
+            student.save_pretrained(str(out / "adapter"))
     student.eval()
-    if a.save_adapter:
-        student.save_pretrained(str(out / "adapter"))
     test = splits["test"].select(range(a.test_limit)) if a.test_limit else splits["test"]
 
-    def score(eval_tok, path):
+    def score(eval_tok, path, dataset=None, greedy=False):
         set_seed(cfg.run.seed)
-        rows_, _ = generate_teacher_traces(cfg=cfg, dataset=test, format_prompt=fmt, method_name="standard",
-                                           device=torch.device("cuda"), model=student, tokenizer=eval_tok)
+        was = cfg.generation.greedy
+        cfg.generation.greedy = greedy
+        rows_, _ = generate_teacher_traces(cfg=cfg, dataset=test if dataset is None else dataset, format_prompt=fmt,
+                                           method_name="standard", device=torch.device("cuda"), model=student,
+                                           tokenizer=eval_tok)
+        cfg.generation.greedy = was
         path.write_text(json.dumps(rows_, indent=1))
         return rows_, sum(1 for r in rows_ if r["correct"]) / max(len(rows_), 1)
 
-    acc_chat = None
     if a.prompt_style == "plain":
         from clean_sweep.generation import core as gen_core
         gen_core.RESPONSE_STRINGS["plain"] = PLAIN_MARKER   # where answer forcing finds the end of the prompt
-        compact, acc = score(PlainPromptTokenizer(tok), out / "test_rl.json")
-        if a.also_eval_chat:
-            _, acc_chat = score(tok, out / "test_rl_chatprompt.json")
+        eval_tok = PlainPromptTokenizer(tok)
     else:
-        compact, acc = score(tok, out / "test_rl.json")
+        eval_tok = tok
+
+    # m8 §15: score every saved adapter on the held-out training problems (teacher's answers) and keep the best;
+    # ties go to the earlier step. No test score is used to choose.
+    kept_step, select, acc_last = None, {}, None
+    ckpts = sorted(out.glob("ckpt_*")) if a.save_every and len(held_ds) and not a.eval_only else []
+    if ckpts:
+        from peft import set_peft_model_state_dict
+        from safetensors.torch import load_file
+        load = lambda d: set_peft_model_state_dict(student, load_file(str(d / "adapter_model.safetensors")))
+        _, acc_last = score(eval_tok, out / "test_rl_last.json")      # the weights after the last step
+        for d in ckpts:
+            load(d)
+            _, select[d.name] = score(eval_tok, out / f"select_{d.name}.json", dataset=held_ds)
+            print(f"checkpoint {d.name}: {select[d.name]:.4f} on {len(held_ds)} held-out training problems", flush=True)
+        best = max(ckpts, key=lambda d: (select[d.name], -int(d.name.split("_")[1])))
+        kept_step = int(best.name.split("_")[1])
+        load(best)
+        student.save_pretrained(str(out / "adapter_kept"))
+    acc_chat = acc_greedy = None
+    compact, acc = score(eval_tok, out / "test_rl.json")
+    if a.greedy_test:
+        _, acc_greedy = score(eval_tok, out / "test_rl_greedy.json", greedy=True)
+    if a.prompt_style == "plain" and a.also_eval_chat:
+        _, acc_chat = score(tok, out / "test_rl_chatprompt.json")
     res = {"student": cfg.model.student, "seed": cfg.run.seed, "dataset": cfg.data.dataset_name, "n_test": len(compact),
            "accuracy": acc, "prompt_style": a.prompt_style, "accuracy_chat_prompt": acc_chat,
+           "kept_step": kept_step, "accuracy_last": acc_last, "accuracy_greedy": acc_greedy,
+           "selection_on_held_out": select, "reward_mode": a.reward_mode, "beta": a.beta, "lr_schedule": a.lr_schedule,
            "min_reason_words": a.min_reason_words,
            "train_prompts": len(data), "no_teacher_answer": no_answer, "train_seconds": round(train_s),
            "lr": a.lr, "num_generations": a.num_generations, "prompts_per_step": a.prompts_per_step,

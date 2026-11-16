@@ -4,6 +4,8 @@
 #   the commit we used, plus our three fixes from third_party/ext/distillation-game.patch (each marked
 #   "ANTIDISTILL PATCH" in the code; see results/m8_audit_design.md §9 and §9.4).
 # - antidistillation-sampling (Savani et al., ADS): reference code only, not used by any script yet.
+# - mem-kk-logic (Xie et al. 2024, MIT): the Knights-and-Knaves puzzle generator of the puzzle testbed
+#   (scripts/kk_make.py imports its data_prep/lib_kk.py unchanged; m8 §17).
 #   bash scripts/setup_third_party.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -18,3 +20,4 @@ else
   echo "distillation-game: patch already applied or does not apply; check 'git -C third_party/ext/distillation-game diff'"
 fi
 clone https://github.com/locuslab/antidistillation-sampling.git third_party/ext/antidistillation-sampling 8b79c72
+clone https://github.com/AlphaPav/mem-kk-logic.git third_party/ext/mem-kk-logic 35385cf

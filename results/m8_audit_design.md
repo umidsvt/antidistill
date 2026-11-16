@@ -804,6 +804,501 @@ with the regenerated U of the same seed, margin 14.8.
 - **Fails** otherwise: the GSM8K setup cannot show protection at any level of the ladder, and the paper's level-A pass is
   withdrawn.
 
+**Prompt check (2026-11-01 20:43; 512 training problems × 8 samples, temperature 1.0, 512 tokens).** Under both prompts
+the untrained student never ends an answer (100% of samples reach the 512-token limit).
+
+| prompt | samples matching the teacher's answer | problems with a matching sample | format reward fires |
+| --- | --- | --- | --- |
+| C, chat | 1.0% | 6.3% | 0.0% |
+| P, plain | 2.3% | 17.8% | 0.02% |
+
+**Pilot (seed 123, 60 steps; complete 2026-11-01 22:35).**
+
+| arm | correctness reward, steps 41–60 | format reward | mean length | test, 300 problems | pilot |
+| --- | --- | --- | --- | --- | --- |
+| C | 0.012 | 0.000 | 323 tokens | 4.0% | **fails** (i), (iii) |
+| P | 0.055 (0.019 at step 5) | 0.282 (0.031 at step 5) | 130 tokens (228 at step 5) | **27.3%** (chat prompt: 0.0%) | **passes** |
+
+Two incidents, neither a change to the recipe: arm C's first attempt ran out of memory and its retry ran normally; arm
+P's three attempts each finished training and then crashed when scoring (the plain-prompt tokenizer wrapper lacked
+`__call__`, which answer forcing uses). After the fix, the adapter saved by the third attempt was scored with
+`--eval-only`; its training log is the one above. By the rule, arm P runs 600 steps for seeds 123–125 (started
+2026-11-01 22:40, GPUs 4–6); arm C stops here.
+
+**Full runs, arm P (complete 2026-11-02 10:56).** Test, 1,209 problems, plain prompt: **2.2 / 2.0 / 2.2%** (seeds
+123–125; chat prompt 0.1 / 0.8 / 0.0%). Every seed **collapsed**: training improved until about step 55–105 (correctness
+reward 0.11 / 0.13 / 0.20, format reward up to 0.88 / 0.59 / 0.90, about 100-token answers), then the format reward fell
+to 0, answers ran to the 512-token limit (seed 125: every sample from step 155 on; seed 123 also passed through
+20-token answers) and correctness fell to 0.00–0.04, below its first logged value (0.016 / 0.031 / 0.034); 95–100% of
+groups then had identical rewards, so GRPO could not recover. The learning-rate schedule explains why the pilot did
+not show this: with 60 steps the cosine schedule had decayed to 3.5e-6 by step 45 and about 0 by step 60, so the pilot
+stopped at its best point; the 600-step runs stayed at 1.7–2.0e-5 from step 30 to 155, where all three collapsed.
+Several attempts also ran out of memory or lost their Hugging Face connection after 3–4 hours and restarted from
+scratch (the retry logic in `scripts/47_levelA_grpo_only.sh`); the logged runs are the attempts that finished.
+
+- **By the §13 collapse criterion, the three full runs are failed recipes, not results:** they do not show what GRPO
+  alone can reach. The best GRPO-only student observed is the pilot's, 27.3% on 300 test problems (seed 123, 60 steps).
+- **Necessity at level A (rule above): passes.** R_A = STaR on every seed (35.81 / 34.41 / 35.48%); U − R_A = +24.5
+  (21.6 to 27.5) against a margin of 14.8, as in §13. The pass holds against every level-A copier built so far (STaR,
+  STaR + GRPO, GRPO alone), but a stable GRPO-only run has not been obtained, so it is not yet tested against the
+  strongest one. A fix (shorter or lower learning-rate schedule, a KL penalty, or checkpoint selection on held-out
+  training problems scored by the teacher's answers) is a recipe change for the authors to decide (rule 1).
+
+## 15. Level A by GRPO alone, with Javaheri et al.'s stabilizers (fixed 2026-11-03, before any result; option B chosen by the user)
+
+**Why.** §14's GRPO-only runs collapsed after about 100 steps. Javaheri et al.'s code (`third_party/ext/treason`,
+commit 127de4c: `simpleRL/train_llama3B_rl.sh`, `train_grpo_math_tune_ray.sh`, SimpleRL-Zoo on verl) trains GRPO alone from
+base Llama-3.2-3B with what our runs lacked: 1,024 problems × 8 samples per step, a KL penalty to the starting model (1e-4,
+`low_var_kl`), an entropy bonus (0.001), learning rate 5e-7 on all parameters, answers up to 2,048 tokens, and the reward
++1 correct / −0.5 wrong / −1 without a boxed answer. Option A (their code unchanged) is deferred; option B ports their
+settings into our TRL script.
+
+**What is run.** `scripts/48_levelA_grpo_stable.sh`, seeds 123–125, one GPU each (GPUs 4–6). Level A: only the base student
+and the teacher's released answers; GSM8K only.
+- **Data:** the setup's 5,238 training problems with the teacher's answers. 256 of them (the last 256 of the seeded split)
+  are held out for checkpoint selection; GRPO trains on the other 4,982. No MATH data, no test data.
+- **Prompt:** §14's plain prompt (their "simple" prompt text is not used: it sits in their data files, which are not read).
+- **Reward (theirs):** +1.0 if the completion has a boxed answer that matches the teacher's answer (the setup's checker),
+  −0.5 if it has a boxed answer that does not, −1.0 if it has none. No other reward.
+- **GRPO:** a new LoRA (rank 128); 32 problems × 8 samples per step (256 samples; 32 times ours, a quarter of their
+  1,024 problems); learning rate 5e-6, constant after a 3% warm-up (their 5e-7 on all parameters, times 10 for LoRA);
+  KL penalty 1e-4 (TRL's `beta`); no entropy bonus (TRL 0.19 has none); temperature 1.0, top-p 1.0; answers up to 2,048
+  tokens; 300 steps (about 1.9 passes over the 4,982 problems).
+- **Checkpoint selection (what a copier can do):** the adapter is saved every 25 steps; each saved adapter is scored on
+  the 256 held-out training problems against the teacher's answers (the setup's sampling and answer forcing); the best one
+  is kept (ties: the earlier step). No test score is used to choose.
+- **Scoring:** the kept adapter and the last one, on the 1,209 test problems, with the plain prompt, the setup's sampling
+  and answer forcing; the kept adapter also greedily (temperature 0, as Javaheri et al. score; reported only).
+- **Smoke test first** (a few steps; no threshold).
+
+**Rule.**
+- **Not a failed recipe** unless the kept checkpoint is the one at step 25 and the correctness reward over the last 50
+  steps is below its first logged value (that is, training only ever made it worse).
+- **Necessity at level A (as §13).** R_A per seed = the best of STaR (§13: 35.81 / 34.41 / 35.48%) and this run's kept
+  adapter (setup's evaluation); compared with the regenerated U of the same seed (§12), margin 14.8.
+  - **Passes** if the 3-seed mean of U − R_A is above 14.8 and its 95% interval excludes 0.
+  - **Fails** otherwise: the GSM8K setup cannot show protection at any level of the ladder; the paper's level-A pass is
+    withdrawn.
+- If this run is a failed recipe, option A (their code unchanged, adapted for level A) is the next step, with its own rule.
+
+**Result (complete 2026-11-04 18:56; recorded 2026-11-08).** Smoke test passed after one fix: TRL 0.19.1 computes the
+reference model's log-probabilities over the whole generation batch at once when `beta > 0` (31 GiB, out of memory);
+`ChunkedGRPOTrainer` in `scripts/dg_rl_base.py` passes the micro-batch size, as TRL does for every other call. Full runs
+on GPUs 4, 6, 7 (GPU 5 was taken by another lab member), about 22 hours each. GSM8K-Platinum, 1,209 problems, from the
+per-problem files:
+
+| seed | kept step (held-out score) | kept adapter | last adapter | kept, greedy (reported only) | STaR (§13) | U (§12) | U − R_A |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 123 | 250 (32%) | 29.11% | 30.11% | 31.68% | 35.81% | 59.31% | +23.5 |
+| 124 | 275 (30%) | 28.29% | 25.89% | 29.69% | 34.41% | 60.22% | +25.8 |
+| 125 | 300 (29%) | 31.35% | 31.35% | 33.75% | 35.48% | 59.80% | +24.3 |
+| mean | | **29.58%** | 29.11% | 31.71% | **35.24%** | 59.77% | **+24.5** (21.6 to 27.5) |
+
+Training: no collapse. The correctness reward stays near its start (0.03–0.04) for about 150 steps while answers first
+grow (to about 600 tokens) and then shorten, and rises from about step 180 to 0.12 / 0.15 / 0.12 over the last 50 steps;
+the held-out scores fall from 17–22% at step 25 to 9–16% around steps 75–125 and climb to their best at steps 250–300, so
+every run was still improving when it stopped.
+
+- **Not a failed recipe** by the rule (kept steps 250 / 275 / 300; reward well above its first value).
+- **Necessity at level A: passes.** R_A = STaR on every seed; U − R_A = +24.5 (21.6 to 27.5) against a margin of 14.8.
+  GRPO alone with the stabilizers reaches 29.6% (31.7% greedy), below STaR's 35.2%; the copier would need about 45% to
+  remove the pass.
+- **Caveat:** the runs were still improving at step 300 (about 1.9 passes over the training problems; Javaheri et al.
+  train for many more updates on four times as many problems per step), so this is not a ceiling for GRPO alone.
+
+**Continuation (fixed 2026-11-08, before any result; option 1 chosen by the user).** Each seed continues for 300 more
+steps from its step-300 adapter (`outputs/setup2/grpo_stable/s<seed>/ckpt_0300`), with every §15 setting unchanged
+(`CONT=1 scripts/48_levelA_grpo_stable.sh`, outputs in `s<seed>_cont/`). Differences, all mechanical: the optimizer
+state is not carried over (a fresh optimizer with the same 3% warm-up), and the problem order restarts from the seeded
+shuffle, so steps 301–600 replay the order of steps 1–300. The KL reference stays the base model. Adapters are saved
+every 25 steps (steps 325–600) and scored on the same 256 held-out training problems.
+- **Kept adapter:** the best held-out score over all 24 adapters of the seed (steps 25–600; ties: the earlier step).
+- **Rule:** as §15. R_A per seed = the best of STaR and the kept adapter's test score; necessity at level A passes if
+  the 3-seed mean of U − R_A is above 14.8 and its 95% interval excludes 0, and fails otherwise.
+
+**Continuation result (complete 2026-11-09 16:28; recorded 2026-11-11).** GPUs 4, 6, 1; about 20–27 hours of training
+per seed. The continuation script chose only among its own 12 adapters. The rule's choice among all 24 adapters was
+made afterwards from the stored `select_ckpt_*.json` files of both runs (256 held-out training problems, teacher's
+answers). Test scores are from the per-problem files (GSM8K-Platinum, 1,209 problems):
+
+| seed | kept step (held-out) | kept adapter | greedy (reported only) | step 600 | STaR (§13) | R_A | U (§12) | U − R_A |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 123 | 475 (35.5%) | 35.32% | 35.24% | 34.82% | 35.81% | STaR | 59.31% | +23.5 |
+| 124 | 275 (30.1%), from the first 300 steps | 28.29% | 29.69% | 21.17% | 34.41% | STaR | 60.22% | +25.8 |
+| 125 | 350 (32.4%) | 32.59% | 34.08% | 8.60% | 35.48% | STaR | 59.80% | +24.3 |
+| mean | | **32.07%** | 33.00% | 21.53% | 35.24% | | 59.77% | **+24.5** (21.6 to 27.5) |
+
+- **Necessity at level A: passes.** R_A = STaR on every seed, so the verdict and the numbers are those of §15.
+- **More GRPO helped two seeds and then became unstable.** The best adapters rose from 29.6% (§15) to 32.1%. Seed 123
+  reached 35.3%, within 0.5 points of its STaR. But seeds 124 and 125 collapsed late in the continuation: their held-out
+  scores fell to 4% around steps 450–500, and their step-600 adapters score 21.2% and 8.6%.
+- With these settings, GRPO alone from the base student does not overtake one round of STaR, and stays more than 24
+  points below the teacher-trained student.
+
+## 16. Answer distributions of the attacker's own models (fixed 2026-11-08, before any result; go-ahead from the user)
+
+**Why.** At the 8 November meeting the professor proposed framing the paper around answer-only attacks: the attacker
+may own models at levels A–D but takes from the teacher only its released final answers (the plan document is not
+written yet). The starting point: an attack that keeps the attacker's own solutions only when
+they reach the teacher's answer aims at the attacker's model conditioned on that answer. This covers STaR, rejection
+sampling, several rounds of either, and RL rewarded by the answer with a KL penalty toward the starting model. That
+target is exactly −log2 p bits (KL) from the model, where p is the probability that the model's answer matches the
+teacher's. This step measures p for every training problem and every owned model. Nothing is trained.
+
+**What is run.** `scripts/49_answer_dist.sh`, which calls `scripts/dg_answer_dist.py` (phases `gen` and `grade`).
+- **Pools:** seed 123's training pools, GSM8K 5,238 problems and MATH 5,000 problems, with the teacher's answers from
+  the regenerated U runs (§12).
+- **Models:**
+  - A: base Llama-3.2-3B with a few-shot raw-text prompt. GSM8K uses Wei et al.'s 8 examples, as in §9.3. MATH uses the
+    4 examples of Lewkowycz et al. (2022), which is new: the MATH level-A cell has not been run before. Those examples
+    are MATH reference solutions, written by people.
+  - B: Llama-3.2-3B-Instruct, with the setup's chat prompt and answer forcing.
+  - C: Qwen2.5-7B-Instruct, the same as B.
+  - No level D: in setup 2 the level-D model is the teacher.
+- **Sampling:** 16 tries per problem at temperature 0.6 and top-p 0.95, the setup's own sampling (STaR used 0.8), up to
+  1,024 tokens, vLLM seed 123.
+- **Storage:** every try, with its text, its final answer, whether it matches the teacher's answer and whether it
+  matches the true solution. Both checks use the setup's checker, the first as in STaR.
+- **GPUs** 2, 3 and 7, one model per GPU at a time.
+- **Pilot first:** the first 200 problems of each pool, to check prompts and answer extraction and to time the runs.
+  The pilot has no threshold.
+
+**Quantities.** `scripts/answer_bits.py` computes these from the stored `tries.jsonl`, never from logs. At level ℓ the
+attacker's tries are the pooled tries of the models it owns (A: A; B: A and B; C: A, B and C), 16 per model, equal
+weight.
+- p_i: the fraction of those tries whose answer matches the teacher's answer for problem i.
+- Surprisal s_i = −log2 p_i, defined when p_i > 0; such a problem is *reachable*.
+- Per level: the mean surprisal over reachable problems, the number of unreachable problems, the histogram of p_i, and
+  the share of problems whose majority answer (normalized answer string) is the teacher's. The same quantities against
+  the true answers are reported as a diagnostic.
+- B alone and C alone are also reported.
+- Resolution: the largest measurable surprisal is 4 bits at A (16 tries), 5 at B (32) and 5.6 at C (48).
+
+**What the outcomes mean.** This step gives no necessity verdict. It decides what is trained next.
+- **GSM8K.** The prediction from §12–15: the teacher's answers carry little that an owned open model does not already
+  give. Concretely, mean surprisal at B and at C is at most half of A's, and the share of problems where the attacker's
+  majority answer is the teacher's is at least 20 points higher than at A. If this holds, the measure is consistent
+  with the answers being worth 34.6 points at A (STaR 35.2% against 0.6% untrained) and with Solo at B and C needing no
+  answers at all (−0.4 and −0.8 points against U). If it fails, the surprisal does not explain the pattern, and this
+  is recorded.
+- **MATH.** If mean surprisal at both B and C is higher than on GSM8K, answer-filtered students at B and C on MATH come
+  next, under their own rule. If not, they are deprioritized.
+- **The tries are kept** as the solution pools for later answer-filtered students, so those need no new generation.
+  No problem is removed. Unreachable problems are counted and reported.
+
+**Pilot (2026-11-08 19:07 – 20:11; first 200 problems of each pool, no threshold).** All six runs generated and were
+graded. Answer extraction was checked by hand on samples of every prompt format.
+- Times: GSM8K 1.0 / 2.0 / 3.6 minutes for A / B / C; MATH 3.5 / 5.2 / 8.1 minutes.
+- Llama-3.2-3B-Instruct almost never writes a boxed answer under the setup's prompt; on GSM8K, 3,148 of its 3,200 tries
+  get their answer from answer forcing, as in the setup's evaluation and the Solo runs.
+- Two runs (MATH A, GSM8K C) wrote their output and then hung at exit for about 50 minutes; they were stopped by PID.
+  `scripts/49_answer_dist.sh` now has a watchdog that stops a run 2 minutes after its last file is written.
+
+**Deviation (2026-11-09, found in the pilot, before the full run): the teacher's reference answer.** The stored
+`extracted_answer` is normalized by the setup, which deletes commas: `(0, 0, 3)` becomes `(0 0 3)` and `-3, 5` becomes
+`-3 5`. So multi-part MATH answers (tuples, lists of solutions, intervals) never matched the teacher, even when right.
+On the pilot this hit 13 of 200 MATH problems.
+- **Fix:** the reference is now the teacher's own boxed text (`teacher_ref` in `scripts/dg_answer_dist.py`), taken
+  from the same source the setup used: the raw solution if it had an answer, else the answer-forced ending.
+- **Check on the full seed-123 pools:** the rebuilt reference reproduces the setup's verdict on the teacher's
+  correctness for 5,222 of 5,238 GSM8K and 4,909 of 4,968 MATH problems. The 59 MATH exceptions come from the setup's
+  checker, which tests the teacher's whole solution text and so credits a partial boxed answer when the full true
+  answer appears elsewhere (`train_23`: boxed −3, true answer "−3 or 5").
+- **Pilot regraded:** on tries where the teacher is right, the teacher check and the truth check now disagree on 0 /
+  45 / 64 of 2,080 MATH tries (A / B / C), down from 14 / 159 / 207. On GSM8K they disagree on 0 / 4 / 11 of 2,816.
+- **Scope:** STaR (§9.3, §13) and GRPO (§14–15) are GSM8K-only. GSM8K answers are single numbers, so the comma
+  deletion only removes thousands separators there, which is correct; those results are unaffected.
+
+**Full run (2026-11-09 00:19 – 03:46; GPUs 2, 3, 7).** Five of the six runs completed: GSM8K A, B and C; MATH A and B.
+The watchdog stopped MATH B once, after its output was written.
+- **MATH C failed twice at startup.** One MATH prompt is 1,717 tokens under Qwen's tokenizer, longer than the
+  1,664-token model length. Nothing was generated. The setup itself truncates prompts at 512 tokens (Solo and U); our
+  runs do not truncate. Under the Llama and Qwen tokenizers, 58 and 56 of the 5,000 MATH prompts exceed 512 tokens; the
+  longest are 1,639 and 1,717. So MATH B ran with every prompt complete. Proposed fix, not yet run: a model length that
+  fits the longest prompt (3,072 tokens) for MATH C, keeping prompts complete as for A and B.
+
+**Result, GSM8K (recorded 2026-11-11, from `tries.jsonl` via `scripts/answer_bits.py`,
+`outputs/setup2_answers/bits_gsm8k_s123.json`).** 5,238 problems; the teacher's answer is wrong on 618.
+
+| level (tries pooled) | mean surprisal, reachable (bits) | unreachable | majority answer = teacher's | majority = true answer |
+| --- | --- | --- | --- | --- |
+| A (16) | 1.926 | 1,533 | 39.9% | 40.5% |
+| B: A + B (32) | 1.078 | 265 | 84.5% | 91.5% |
+| C: A + B + C (48) | 0.751 | 239 | 88.6% | 96.8% |
+| B alone (16) | 0.386 | 376 | 86.1% | 93.8% |
+| C alone (16) | 0.097 | 479 | 88.5% | 96.3% |
+
+- **Verdict on the GSM8K prediction: holds at C, fails at B.**
+  - Required: mean surprisal at most half of A's (0.963 bits), and the majority-equals-teacher share at least 20
+    points higher than at A (59.9%).
+  - C: 0.751 bits and 88.6%. Holds.
+  - B: 1.078 bits, above the 0.963 bar, although its 84.5% passes the second condition. Fails.
+- **Why B fails.** The rule pools the levels' models with equal weight, so at B half the tries come from the base
+  student, which matches the teacher only 26% of the time. B alone carries 0.386 bits, a fifth of A's. Equal-weight
+  pooling is a poor model of an attacker, who would draw most samples from its best model. Any change to the primary
+  measure is a new rule for later steps, not a revision of this verdict.
+- **Exploratory, not part of the rule: the teacher's errors.** Most unreachable problems at B and C are ones where the
+  teacher's answer is wrong: 456 of C alone's 479. There the open models agree with the true answer instead. Restricted
+  to the 4,620 problems where the teacher is right, mean surprisal is 1.863 bits at A, 0.263 for B alone and 0.042 for
+  C alone. The surprisal against the teacher counts the teacher's mistakes as information. A later measure should
+  report the two groups separately.
+
+**Partial result, MATH (`bits_math_s123.json`).** 5,000 problems; MATH C is missing, so the MATH rule (B *and* C higher
+than on GSM8K) cannot be judged yet.
+
+| level (tries pooled) | mean surprisal, reachable (bits) | unreachable | majority answer = teacher's | majority = true answer |
+| --- | --- | --- | --- | --- |
+| A (16) | 2.789 | 3,001 | 15.8% | 15.3% |
+| B: A + B (32) | 1.676 | 1,196 | 62.0% | 83.1% |
+| B alone (16) | 0.725 | 1,380 | 62.6% | 85.6% |
+
+B is higher than on GSM8K both pooled (1.676 against 1.078 bits) and alone (0.725 against 0.386).
+
+## 17. Puzzle testbed, step 1: solve-rate pilot on Knights and Knaves (fixed 2026-11-13, before any result; step 0 approved by the user, the pilot run not yet)
+
+**Why.** In both setups examined so far (GSM8K, MATH), open models train a student as good as the teacher's at levels
+B–D, so a defense has nothing to protect there; only level A shows a gap. Both datasets are also probably in the open
+models' training data. We need a task where the teacher clearly beats every model the attacker owns, which no model
+has seen, and whose answers a program can check. Knights and Knaves puzzles meet the last two conditions by
+construction. This pilot tests the first: is there a difficulty at which the teacher solves most puzzles and the
+attacker's open models solve few?
+
+**Puzzles.** Generated with Xie et al.'s (2024) generator (`third_party/ext/mem-kk-logic`, commit 35385cf, MIT;
+`data_prep/lib_kk.py`). The generator, the puzzle text and the answer format are theirs, not ours.
+- N people, N = 3 to 8. Each person makes one statement: a random tree of depth ≤ 2 and width ≤ 2 over "X is a
+  knight/knave" with and / or / not / implies / iff, as in their main experiments.
+- Only puzzles with exactly one solution are kept (their brute-force check).
+- Fresh puzzles: sampler seed 20261113 + N, not their seed 1234. 100 puzzles per N, 600 in all
+  (`scripts/kk_make.py` → `data/kk/pilot_test.jsonl`).
+- Known limitation: an attacker who can program could write a solver (their code includes one) and would need no
+  teacher. The testbed stands in for domains where no program solver exists.
+
+**Models.** All in the lab cache; nothing is trained.
+
+| role | model | max new tokens |
+| --- | --- | --- |
+| teacher (stands in for a closed frontier model) | DeepSeek-R1-Distill-Qwen-32B, 4 GPUs (tensor parallel) | 8,192 |
+| B | Llama-3.2-3B-Instruct | 2,048 |
+| C | Qwen2.5-7B-Instruct | 2,048 |
+| D | DeepSeek-R1-Distill-Qwen-7B (the open reasoning model of setup 2's ladder) | 8,192 |
+| D, newer (reported separately) | Qwen3-8B, thinking mode | 8,192 |
+
+Level A (base Llama-3.2-3B) is left to step 2: it needs a few-shot prompt, and the go/no-go below depends only on
+the best owned model.
+
+**Generation** (`scripts/kk_pilot.py`, vLLM 0.8.5 in `.venv-dg`).
+- Prompt: Xie et al.'s instruction (`dataset/prompt.py`, `system_instruction`: reason, then end with "CONCLUSION:" and
+  one numbered line per person), followed by the puzzle, as the user message of each model's chat template.
+- 4 tries per puzzle, temperature 0.6, top-p 0.95; vLLM seed 123.
+
+**Scoring.** A try is correct when the text after a reasoning model's thinking (after its last `</think>`; a reasoning
+model's try with no `</think>` never finished and counts as wrong) has a "CONCLUSION:" section that labels every person
+exactly once, and every label matches the solution. Markdown emphasis and capitalization are ignored. Xie et al.'s
+own scorer (`parse_cot_eval`, a copy in the script) is also recorded, to show agreement.
+
+**Quantities, per model and N:** solve rate (the fraction of all tries that are correct); the fraction of puzzles
+solved at least once in 4 tries; the fraction of tries that finished; the mean length of all tries and of correct
+tries.
+
+**What the outcomes mean.**
+- **Go to step 2** if at least one N has a teacher solve rate of at least 70% and a solve rate of at most 30% for the
+  best of B, C and D (R1-Distill-Qwen-7B). Step 2 (students trained on the teacher's solutions, on open models'
+  solutions and on answers only, at the chosen N) gets its own rule.
+- **Qwen3-8B** is reported separately. If it exceeds 30% at every N that passes, the result is recorded as "a gap
+  exists only against the older open reasoning model", and the authors decide whether step 2 goes ahead.
+- **No N passes:**
+  - If the teacher stays below 70% wherever the open models are below 30%, the 8,192-token budget or the task is too
+    hard for the teacher.
+  - If the open models stay above 30% wherever the teacher reaches 70%, open models close the gap on Knights and
+    Knaves too.
+
+  Either way the result is recorded, and the authors decide between Zebra puzzles and stopping.
+- **Length flag for step 2:** the mean length of the teacher's correct solutions at the chosen N is reported. If it
+  exceeds 4,096 tokens, step 2 needs longer-context training than the setup's 2,048 tokens. That failure stopped the
+  full-budget MATH attempt (§10.1).
+
+**Puzzles made (2026-11-13 01:15).** `data/kk/pilot_test.jsonl`: 600 distinct puzzles, 100 per N, 55.3% knights.
+Running `scripts/kk_make.py` imports the cloned repository's `lib_kk.py`; the user approved this after it was read
+(standard library and numpy only; no file, network or process calls).
+
+**Smoke test (2026-11-13 01:23 – 01:29; the first 12 puzzles, all N = 3; 2 tries; no threshold).** All five models
+ran, the teacher on GPUs 0–3 with tensor parallel 4.
+
+| model | solved (fixed checker) | Xie et al.'s criterion | finished | mean tokens |
+| --- | --- | --- | --- | --- |
+| teacher, R1-Distill-Qwen-32B | 24/24 | 24/24 | 100% | 1,439 |
+| B, Llama-3.2-3B-Instruct | 6/24 | 6/24 | 100% | 445 |
+| C, Qwen2.5-7B-Instruct | 8/24 | 9/24 | 100% | 636 |
+| D, R1-Distill-Qwen-7B | 21/24 | 20/24 | 96% | 2,643 |
+| Qwen3-8B | 24/24 | 21/24 | 100% | 1,982 |
+
+**Checker fix (made after the smoke test, before any pilot result).** Qwen3-8B adds an explanation after its
+numbered list that quotes the statements (e.g. "Jackson is a knave or Jackson is a knight"), and the first checker
+read those quotes as a second label: it scored 19 of Qwen3-8B's 24 tries correct. The checker now reads only the
+numbered lines (1) to N of the last CONCLUSION section (or, without numbers, the text up to the first blank line), and
+it passes 11 hand-written cases. Rescored, Qwen3-8B has 24/24; the other models are unchanged.
+
+The 5 remaining disagreements with Xie et al.'s criterion were read one by one. In each, the fixed checker is right:
+- C wrote two contradictory full answers. Their criterion accepts this; ours rejects it.
+- D's correct final answer followed an earlier CONCLUSION. Their criterion reads the first one.
+- Three correct Qwen3-8B answers had explanations containing "if and only if". Their criterion rejects any answer that
+  contains "if".
+
+**Result (2026-11-13 01:29 – 03:17; recorded 2026-11-13).** 600 puzzles × 4 tries per model, from
+`outputs/kk_pilot/<model>/tries.jsonl` and `summary.json`. Each cell: solve rate (fraction of tries correct) / fraction
+of puzzles solved at least once / fraction of tries that finished / mean tokens of correct tries.
+
+| model | N = 3 | 4 | 5 | 6 | 7 | 8 |
+| --- | --- | --- | --- | --- | --- | --- |
+| teacher, R1-Distill-Qwen-32B | .96/1.00/.99/1,739 | .93/1.00/.98/2,105 | .90/.99/.97/2,343 | .83/.99/.96/2,539 | **.76**/1.00/.92/2,784 | **.71**/.95/.87/3,164 |
+| B, Llama-3.2-3B-Instruct | .20/.55/1.00/373 | .10/.38/.99/467 | .04/.17/.98/554 | .02/.09/.96/563 | .01/.05/.99/480 | .00/.01/.96/586 |
+| C, Qwen2.5-7B-Instruct | .41/.80/1.00/598 | .25/.61/1.00/707 | .15/.41/1.00/762 | .08/.31/1.00/945 | .05/.15/1.00/869 | .04/.16/.99/966 |
+| D, R1-Distill-Qwen-7B | .80/.97/.95/1,900 | .63/.93/.89/2,528 | .52/.85/.86/2,489 | .39/.82/.80/2,733 | **.28**/.63/.74/3,048 | **.20**/.50/.61/3,241 |
+| Qwen3-8B (reported separately) | 1.00/1.00/1.00/2,106 | .99/1.00/.99/2,664 | .99/1.00/.99/2,951 | .97/1.00/.98/3,196 | .95/1.00/.97/3,433 | .92/1.00/.95/3,735 |
+
+Run times: teacher 90 minutes (4 GPUs); B 5, C 10, D 99, Qwen3-8B 106 minutes (1 GPU each).
+
+- **Go condition: met at N = 7 and N = 8.** The teacher solves 76% and 71%; the best of B, C and D (always D) solves 28%
+  and 20%. At N ≤ 6, D is above 30%.
+- **Qwen3-8B exceeds 30% at both passing N (95% and 92%) and beats the teacher at every N.** By the rule: *a gap exists
+  only against the older open reasoning model*, and the authors decide whether step 2 goes ahead.
+- **Length:** the teacher's correct solutions average 2,784 (N = 7) and 3,164 (N = 8) tokens, below the 4,096 flag. But
+  they exceed the setup's 2,048-token training length, so step 2 needs a longer training context in any case. At N = 8,
+  13% of the teacher's tries hit the 8,192-token limit.
+- **Agreement with Xie et al.'s criterion** is recorded per try in `tries.jsonl`; the smoke test showed where the two
+  differ.
+- **Authors' decision (2026-11-13):** keep the design. The teacher stays R1-Distill-Qwen-32B and level D stays
+  R1-Distill-Qwen-7B; step 2 goes ahead at N = 7 and 8. Qwen3-8B beating the teacher is reported as a limitation of the
+  testbed. The alternatives considered were Qwen3-8B as the teacher, and a stronger teacher with harder puzzles (the
+  cached Qwen3.8-27B is not supported by either installed vLLM).
+
+## 18. Puzzle testbed, step 2: is there something to protect at N = 7–8? (fixed 2026-11-13, before any result; not yet approved to run)
+
+**Why.** §17 found the first setting where the teacher clearly beats the attacker's owned models of levels B–D on
+solving. Solving is not training: what matters is whether a student trained on the teacher's solutions beats students
+trained on what the attacker owns. This step applies the necessity check (§11) at levels B, C and D, and measures the
+floor of §16's framing at level D: a student trained only with the help of the teacher's answers.
+
+**Puzzles** (`scripts/kk_make.py`, Xie et al.'s generator, depth ≤ 2, width ≤ 2; disjoint from each other and from
+the pilot by statement, which is checked):
+- Training pool: 1,000 puzzles at N = 7 and 1,000 at N = 8 (seed 20261313 + N).
+- Test set: 500 at N = 7 and 500 at N = 8 (seed 20261213 + N).
+
+**Solution writers**, all with §17's prompt and sampling (temperature 0.6, top-p 0.95, 8,192 new tokens for reasoning
+models, 2,048 for the others):
+- Teacher: R1-Distill-Qwen-32B, 1 try per training puzzle.
+- B, C: 1 try per training puzzle.
+- D: R1-Distill-Qwen-7B, 4 tries per training puzzle.
+
+**Students** (student: base Llama-3.2-3B), each trained on one solution per training puzzle:
+
+| student | trained on | uses from the teacher |
+| --- | --- | --- |
+| U | the teacher's solution, correct or not (as U in setup 2) | solutions |
+| Solo_B, Solo_C | B's or C's solution, correct or not | nothing |
+| Solo_D | D's first try, correct or not | nothing |
+| F_D (the floor at D) | D's first try that reaches the teacher's answer. For puzzles with none in 4 tries, D gets the teacher's answer as a hint (STaR's rationalization, §9.3) and 4 more tries; the hint is removed from the training text. Puzzles still unsolved are reported, not trained on. | answers only |
+| untrained | — | — |
+
+Level A (the base student alone) is deferred: it needs a few-shot prompt for these puzzles.
+
+**Training** (a new script, `scripts/kk_sft.py`; the setup-2 code's prompts are math-specific): setup 2's recipe where
+it applies, namely LoRA rank 128 (alpha 128), learning rate 5e-4 with cosine decay and 3% warm-up, 3 epochs, effective
+batch 24, weight decay 0.1, gradient clipping 1.0. Loss on the solution only. Maximum length 8,704 tokens (setup 2:
+2,048, too short for these solutions, §17). The student sees the puzzle as the user turn of the Llama-3.2 chat
+template, with §17's instruction. Seeds 123, 124, 125.
+
+**Scoring** (`scripts/kk_pilot.py`'s checker): each student gets 1 try per test puzzle (temperature 0.6, top-p 0.95, up
+to 8,192 tokens, vLLM with the LoRA). The answer part is the text after the last `</think>` if there is one, otherwise
+the whole text. Solve rate on the 1,000 test puzzles (primary), and per N.
+
+**Rule.** Margin = a quarter of what training on the teacher's solutions adds: (U − untrained) / 4, mean of 3 seeds.
+- **Necessity at level ℓ (B, C, D):** passes if the 3-seed mean of U − Solo_ℓ is above the margin and its 95% interval
+  excludes 0.
+- **The floor at D:** the protectable part at D is U − F_D. It *exists* if its 3-seed mean is above the margin and its
+  95% interval excludes 0.
+
+**What the outcomes mean.**
+- **Necessity passes at D:** the first setting where the teacher's solutions are needed against an attacker who owns an
+  open reasoning model. Step 3 (defenses, measured against the floor) gets its own rule.
+  - If the protectable part also exists, a defense has something to protect, and step 3 measures how much of it each
+    defense removes.
+  - If it does not exist, the teacher's answers alone recover what its solutions give at D, so no answer-keeping
+    defense can protect anything here. That is the central claim of the floor framing, in a setting where the teacher
+    is needed.
+- **Necessity fails at D:** even when the teacher is a far better solver, an attacker with R1-Distill-Qwen-7B does not
+  need its solutions. This is recorded, and the authors decide between stopping and a teacher that is further ahead.
+- **The limitation of §17 stands either way:** Qwen3-8B solves these puzzles better than the teacher.
+
+**Smoke test first** (20 training puzzles, 10 test puzzles, 1 seed, a few steps; no threshold).
+
+**Puzzles made (2026-11-13 14:10).** `data/kk/step2_train.jsonl` (2,000) and `data/kk/step2_test.jsonl` (1,000). No
+statement is shared between them or with the pilot.
+
+**Smoke test (2026-11-13 14:18 – 15:30; `outputs/kk_step2/smoke/`).** Every stage ran:
+- **Writers on 20 training puzzles:** the teacher 13/20 correct, D 18–25% of tries, B 0/20, C 1/20.
+- **Hint round and build:** 2 puzzles had no readable teacher answer, and 8 went to the hint round. F_D got 14
+  examples: 10 from the first round and 4 from the hint round; 4 stayed unsolved.
+- **Training texts** are formatted as intended: the R1 writers' text starts with `<think>`, and every text ends with the
+  numbered CONCLUSION list.
+- **Students:** all six were trained for 3 steps and scored on 10 test puzzles. All solve 0, as expected after 3 steps.
+
+Two mechanical changes, both before any step-2 result:
+- **GPU layout.** Labmates held GPUs 3 and 5, so neither group had 4 free GPUs. The teacher runs as tensor-parallel-2
+  copies instead of one tensor-parallel-4 copy: two copies, one per N, in the smoke test. The full data phase runs one
+  copy on GPUs 0 and 3, because GPUs 1, 6 and 7 now carry the user's own jobs. This changes speed, not the sampled
+  solutions' distribution.
+- **Free-memory wait.** The launcher waited for 42 GB free before every job. On GPU 1, a 3.5 GB job kept the F_D
+  training job waiting for 34 minutes, so it was run by hand on GPU 2. Training now waits for 30 GB and scoring for
+  40 GB.
+
+**Data phase (2026-11-13 15:35 – 2026-11-14 00:46).** GPUs 0+3 (teacher, tensor parallel 2), 2 and 4.
+- **Writers:** correct at N = 7 / 8 were the teacher 73.9% / 69.6% (424 minutes), D 27.5% / 17.4%, C 5.8% / 2.1%,
+  B 1.5% / 0.2%.
+- **No readable teacher answer:** 288 of 2,000 puzzles, mostly where the teacher ran out of its 8,192 tokens. U trains
+  on these solutions; F_D cannot use them.
+- **Hint round:** 814 puzzles.
+- **Training sets** (`build_report.json`):
+  - U: 2,000 examples, 1,435 correct.
+  - Solo_B: 2,000 (17 correct). Solo_C: 2,000 (79). Solo_D: 2,000 (430).
+  - F_D: 1,304 examples (1,189 correct): 898 from the first round, 406 from the hint round. 408 stayed unsolved and 288
+    had no teacher answer; both groups are reported and not trained on.
+
+**Training phase (2026-11-14 00:46 – 10:18; GPUs 0–4, 6; 18 runs).**
+
+**Scoring bug, found 2026-11-15, before this result was recorded.** The students are trained in the Llama-3.2 chat
+template, whose turns end with `<|eot_id|>`. `kk_eval.py` ran the base model's stop setting, which stops only at
+`<|end_of_text|>`. So generation ran past the answer into an invented next turn (`…Isabella is a knave.user <think>
+Alright, so…`), up to the 8,192-token cap. This is why only 3–10% of the reasoning students' tries "finished". The
+checker reads the last CONCLUSION, so some verdicts come from that extra text instead of the student's answer.
+- **Fix:** `kk_eval.py` now stops at `<|eot_id|>`. The adapters are kept, so a clean rescore needs no retraining. It is
+  not yet run: it waits for the authors' go-ahead.
+- **Not affected:** the pilot (§17) and the solution writers. They used instruct and reasoning models whose stop
+  settings include their end-of-turn tokens.
+
+**Provisional result, two scorings of the stored outputs** (1,000 test puzzles; seeds 123 / 124 / 125). "As scored"
+reads the last answer in the text; "first answer" reads the first CONCLUSION section, as a diagnostic.
+
+| student | as scored | first answer |
+| --- | --- | --- |
+| U (teacher's solutions) | 39.8 / 42.0 / 41.0 → **40.9%** | 49.8 / 49.1 / 47.4 → **48.8%** |
+| F_D (answers only, floor at D) | 16.7 / 21.1 / 18.9 → **18.9%** | 20.5 / 23.7 / 20.5 → **21.6%** |
+| Solo_D (R1-Distill-Qwen-7B's solutions) | 8.6 / 14.0 / 11.5 → 11.4% | 8.8 / 15.1 / 13.0 → 12.3% |
+| Solo_C (Qwen2.5-7B-Instruct's) | 4.6 / 4.9 / 4.9 → 4.8% | 4.7% |
+| Solo_B (Llama-3.2-3B-Instruct's) | 0.5 / 0.6 / 0.2 → 0.4% | 0.4% |
+| untrained | 0.1 / 0.0 / 0.7 → 0.3% | 0.3% |
+
+Rule check, the same under both scorings (margin 10.2 as scored, 12.1 on first answers):
+- **Necessity at D:** U − Solo_D = +29.6 (25.6 to 33.5) as scored, +36.5 (26.7 to 46.2) on first answers. Passes.
+- **Necessity at C:** +36.1 and +44.0. Passes.
+- **Necessity at B:** +40.5 and +48.3. Passes.
+- **Protectable part at D:** U − F_D = +22.0 (19.3 to 24.8) as scored, +27.2 (22.3 to 32.1) on first answers. It
+  exists.
+- **The answers alone add** F_D − Solo_D = +7.5 points as scored, +9.3 on first answers.
+
+**Provisional verdict:** for the first time in this project, the teacher's solutions are needed against an attacker
+who owns an open reasoning model, and something is left to protect. The final numbers come from the rescore.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

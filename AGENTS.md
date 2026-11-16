@@ -7,6 +7,7 @@ The rules in brief (full text in CLAUDE.md):
 - Write each experiment's decision rule in `results/m8_audit_design.md` before running it; record results there.
 - Start no job, queue or process without the authors' explicit go-ahead; ask before changing a fixed rule.
 - Never drop problems from a training pool.
-- On dspl1, GPUs 0 and 1 are reserved for others; every job waits for free GPU memory.
+- On dspl1, any GPU may be used, but one job's GPUs must all come from one group (0–3 or 4–7); never use a GPU another
+  person is using (`gpus` shows who holds what); every job waits for free GPU memory.
 - Never use another user's Hugging Face token; set `HF_HUB_DISABLE_IMPLICIT_TOKEN=1` and use ungated mirrors.
 - Stop orphaned vLLM engines of your own jobs (command in CLAUDE.md).

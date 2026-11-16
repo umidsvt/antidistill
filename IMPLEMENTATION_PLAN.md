@@ -1,13 +1,99 @@
 # Implementation Plan
 
-**Status: 2026-10-30.** dspl1 was rebuilt on 2026-10-29 and every file outside git was lost (CLAUDE.md, "Start
-here"). The environments, upstream clones and models were rebuilt on 2026-10-30, and the paper was brought up to date
-with m8. Part I is the current plan: the audit of anti-distillation evaluation setups. Part II is the
-original plan of September 2026 (replication and attacks), kept because it documents the LIMO pipeline the audit still
-uses. For any number or decision rule, `results/m8_audit_design.md` (m8) is the source; this file says where things
-stand and what comes next.
+**Status: 2026-11-15.** Part I is the current plan: the answer floor and the Knights-and-Knaves testbed (agreed after
+the meeting of 2026-11-08). Part II is the audit plan of October 2026, which Part I builds on and replaces. Part III is
+the original plan of September 2026 (replication and attacks), kept because it documents the LIMO pipeline. For any
+number or decision rule, `results/m8_audit_design.md` (m8) is the source; this file says where things stand and what
+comes next.
 
-# Part I — the audit (current)
+# Part I — the answer floor and the puzzle testbed (current)
+
+## Direction
+
+- **The idea (meeting of 2026-11-08; framing agreed with the user).** Every anti-distillation defense keeps the
+  teacher's final answers correct. An attacker can ignore the defended solutions and train from the answers alone, so
+  a defense can protect at most P_ℓ = U − F_ℓ: the student trained on the teacher's solutions minus the best
+  answers-only student at attacker level ℓ (the *answer floor*). Definitions and protocol: m8 §11, §16, §18.
+- **Paper.** *What Can Anti-Distillation Defenses Protect? An Answer Floor, and a Testbed Where the Teacher Is
+  Needed*, ICML 2027, in the private repo https://github.com/ceferisbarov/antidistillation-overleaf, folder
+  `icml2027_testbed/` (ICML 2026 style as a proxy; pending results in orange). The audit draft `icml2027_audit/` and
+  the co-author's `icml2027/` are not edited.
+- **Contributions.**
+  1. The answer floor: a bound on every answer-preserving defense, with a pre-registered protocol per attacker level.
+  2. The standard setups leave little to protect.
+     - GSM8K: nothing at levels B and C; at most 24.6 points at level A.
+     - ADS's reported effect already reaches the floor.
+     - RL does not beat self-training as an answers-only attack.
+     - Prior work's answers-only baseline (5.2%) underestimates the answer channel.
+  3. A testbed where the teacher is needed: fresh Knights-and-Knaves puzzles at 7–8 people. The teacher's solutions are
+     necessary even against an open 7B reasoner, and a protectable part exists.
+  4. Defenses measured against the floor on the testbed, plus the cost of corrupting answers (phases 1–2, not run
+     yet).
+- **Fixed decisions.**
+  - The margin is a quarter of U − U₀; there are 3 seeds; the 95% interval must exclude 0 (m8 §7, §11).
+  - Answers-only attacks are rewarded by the teacher's released answers, never ground truth.
+  - Attacker ladder A–D (m8 §9.3); for the puzzles, Table 1 of the paper.
+  - The puzzle teacher stays R1-Distill-Qwen-32B and level D stays R1-Distill-Qwen-7B. Qwen3-8B beating the teacher is
+    a stated limitation (m8 §17, authors' decision of 2026-11-13).
+
+## Where each experiment stands
+
+| # | Experiment | m8 | Status | Result |
+| --- | --- | --- | --- | --- |
+| 1 | GSM8K / MATH setup: U, Solo B, Solo C, untrained (regenerated) | §12 | done | GSM8K 59.8 / 59.8 / 58.9 / 0.6; MATH 15.5 / 15.5 / 17.6 / 0.9 |
+| 2 | Level A floor on GSM8K: few-shot STaR | §13 | done | 35.2%; teacher needed, +24.5 (21.6 to 27.5) |
+| 3 | Level A by RL (STaR then GRPO; GRPO alone; GRPO with stabilizers, 300 + 300 steps) | §13–15 | done | best 32.1%, below STaR; two seeds collapsed late |
+| 4 | How predictable the teacher's answers are (16 tries per problem and owned model) | §16 | 5 of 6 runs done; MATH C crashed (prompt too long; fix ready, not run) | GSM8K: 1.93 / 0.39 / 0.10 bits at A / B / C; the pre-registered test held at C and failed at B |
+| 5 | Knights-and-Knaves pilot (600 puzzles, 5 models) | §17 | done | go at 7 and 8 people; Qwen3-8B beats the teacher |
+| 6 | Knights-and-Knaves step 2 (U, Solo B/C/D, floor F_D, untrained; 3 seeds) | §18 | trained; **provisional** (scoring bug found 2026-11-15); clean rescore running | U 41–49%, F_D 19–22%, R_D 11–12%; teacher needed at B, C, D; protectable part +22 to +27 |
+| 7 | Defenses on the testbed (ADS, PoE, a rewriting defense) | – | not started | phase 1 |
+| 8 | Floor under corrupted answers (0 / 12 / 30 / 50% wrong) | – | not started | phase 2 |
+| 9 | Level A on the puzzles; level A on MATH | – | not started | phase 3 |
+
+## Running now (2026-11-15 20:07)
+
+The clean rescore of step 2 (m8 §18): `EVAL_DIR=test_eot PHASE=train scripts/51_kk_step2.sh`, 18 scoring jobs on
+GPUs 0–4, 6, 7 (`logs/kk_step2_rescore.log`). Outputs go to `outputs/kk_step2/students/<student>_s<seed>/test_eot/`;
+the first scoring stays in `test/` for comparison. When it finishes: apply the §18 rule to `test_eot`, record it in m8
+§18, and update the paper's macros (`\kkU` …) and `make_figures.py` (`KK`, `KK_FINAL = True`).
+
+## Next phases, in order
+
+0. **Rescore** (running): final step-2 numbers.
+1. **Defenses on the testbed.** A rewriting defense first (prompt-based, cheap), then ADS and PoE. Those need the
+   setup's sampling code adapted to the 32B teacher and the puzzle prompt, and a proxy student. For each defense, train
+   the defended student with the step-2 recipe. Report the share of the protectable part it removes, (U − D_φ) /
+   (U − F_D), and its cost to users: the teacher's own accuracy and finished rate under the defense.
+2. **The cost of touching the answers.** The floor student trained when 0, 12, 30 and 50% of the teacher's answers are
+   wrong, on GSM8K and on the puzzles.
+3. **Fill the gaps.**
+   - Level A on the puzzles: a few-shot prompt for the base student, then STaR.
+   - Level A on MATH: the 4-shot MATH prompt exists in `scripts/dg_answer_dist.py`.
+   - The MATH C answer-sampling rerun.
+   - **Co-author task:** a stronger level-A attacker (a better RL recipe) on GSM8K, then on the puzzles; briefing in
+     `results/briefing_levelA_rl.md`. A stronger answers-only attack raises the floor, so the paper's bounds stay
+     valid either way.
+4. **Writing:** the draft in `icml2027_testbed/`; the authors add the missing references listed in its README.
+
+Each phase gets its rule in m8 before it runs, and GPU-heavy runs need the authors' go-ahead.
+
+## Open decisions (for the authors)
+
+- Which rewriting defense to use in phase 1 (Ma et al.'s instruction-based rewriting is the closest published one).
+- Whether to add a stronger teacher and harder puzzles later, to remove the Qwen3-8B limitation (needs a newer vLLM
+  for Qwen3.8-27B).
+- The primary answer-predictability measure for later steps: each owned model alone, and teacher-right and
+  teacher-wrong problems separately. This would be a new rule; the §16 verdict stands as recorded.
+
+## How to pick up the work
+
+1. Read `CLAUDE.md` ("Start here": rules for this shared machine and this project), then m8 §11 and §16–18.
+2. Check what is running: the section above, the logs it names, and `nvidia-smi` (`gpus` shows who holds what).
+3. Before a new experiment, write in m8 what is run and what each outcome means, and get the authors' OK for
+   GPU-heavy runs.
+4. After a result, record it in m8 (numbers and the verdict by the rule), then in the paper.
+
+# Part II — the audit (October 2026; replaced by Part I, kept for its history)
 
 ## Direction
 
@@ -38,7 +124,12 @@ stand and what comes next.
 | 9 | LIMO combination student (7B Solo + LIMO) | §11 | not started | needs 4 GPUs for about 20 hours |
 | 10 | Our own PoE / ADS defended runs | – | not started | only useful in a setup that passes |
 
-## Running now (2026-11-01 16:40): nothing
+## Status on 2026-11-08 (historical)
+
+Level A by GRPO alone with Javaheri et al.'s stabilizers (m8 §15, option B, `scripts/48_levelA_grpo_stable.sh`)
+finished on 2026-11-04 at 18:56: no collapse, kept adapters 29.6% (greedy 31.7%), below STaR's 35.2%, so level A still
+passes necessity. The runs were still improving at step 300; whether to train longer is the authors' decision.
+
 
 Level A with RL after self-training (m8 §13, `scripts/46_levelA_star_grpo.sh`) finished on 2026-11-01 at 16:36 and is
 recorded in m8 §13: STaR reproduces (35.2%), GRPO lowers it (30.2%), and level A still passes necessity. The
@@ -93,7 +184,7 @@ the same regenerated files.
    GPU-heavy runs.
 4. After a result, record it in m8 (numbers and the verdict by the rule), then in the paper.
 
-# Part II — the original plan (September 2026)
+# Part III — the original plan (September 2026)
 
 **Status as of 2026-09-10 (historical): attacking the hindsight defense.**
 
