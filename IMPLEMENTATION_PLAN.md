@@ -35,6 +35,8 @@ comes next.
   - Attacker ladder A–D (m8 §9.3); for the puzzles, Table 1 of the paper.
   - The puzzle teacher stays R1-Distill-Qwen-32B and level D stays R1-Distill-Qwen-7B. Qwen3-8B beating the teacher is
     a stated limitation (m8 §17, authors' decision of 2026-11-13).
+  - The LIMO setup is left out of the paper (authors' decision, 2026-11-15). Only its level D was measured (m8 §9.5),
+    so it would raise questions about levels A–C that we cannot answer without regenerating its lost data.
 
 ## Where each experiment stands
 
@@ -45,21 +47,21 @@ comes next.
 | 3 | Level A by RL (STaR then GRPO; GRPO alone; GRPO with stabilizers, 300 + 300 steps) | §13–15 | done | best 32.1%, below STaR; two seeds collapsed late |
 | 4 | How predictable the teacher's answers are (16 tries per problem and owned model) | §16 | 5 of 6 runs done; MATH C crashed (prompt too long; fix ready, not run) | GSM8K: 1.93 / 0.39 / 0.10 bits at A / B / C; the pre-registered test held at C and failed at B |
 | 5 | Knights-and-Knaves pilot (600 puzzles, 5 models) | §17 | done | go at 7 and 8 people; Qwen3-8B beats the teacher |
-| 6 | Knights-and-Knaves step 2 (U, Solo B/C/D, floor F_D, untrained; 3 seeds) | §18 | trained; **provisional** (scoring bug found 2026-11-15); clean rescore running | U 41–49%, F_D 19–22%, R_D 11–12%; teacher needed at B, C, D; protectable part +22 to +27 |
+| 6 | Knights-and-Knaves step 2 (U, Solo B/C/D, floor F_D, untrained; 3 seeds) | §18 | done; scored on first answers (decision 2026-11-16; students cannot emit end-of-turn, retraining open) | U 48.8%, F_D 22.4%, R_D 12.9%; teacher needed at B, C, D; protectable part +26.4 (19.7 to 33.1) |
 | 7 | Defenses on the testbed (ADS, PoE, a rewriting defense) | – | not started | phase 1 |
 | 8 | Floor under corrupted answers (0 / 12 / 30 / 50% wrong) | – | not started | phase 2 |
-| 9 | Level A on the puzzles; level A on MATH | – | not started | phase 3 |
+| 9 | Level A on the puzzles; level A on MATH (STaR) | §19, §20 | running since 2026-11-16 16:33 | – |
 
-## Running now (2026-11-15 20:07)
+## Running now (2026-11-16 16:33)
 
-The clean rescore of step 2 (m8 §18): `EVAL_DIR=test_eot PHASE=train scripts/51_kk_step2.sh`, 18 scoring jobs on
-GPUs 0–4, 6, 7 (`logs/kk_step2_rescore.log`). Outputs go to `outputs/kk_step2/students/<student>_s<seed>/test_eot/`;
-the first scoring stays in `test/` for comparison. When it finishes: apply the §18 rule to `test_eot`, record it in m8
-§18, and update the paper's macros (`\kkU` …) and `make_figures.py` (`KK`, `KK_FINAL = True`).
+Level A on MATH and on the puzzles (m8 §19–20): `GPUS="2 3 4 6 7" scripts/52_levelA_fill.sh`, 6 jobs (`math` and `kk`,
+seeds 123–125), log `logs/levelA_fill.log`; outputs in `outputs/setup2/star_fewshot_math_s<seed>/` and
+`outputs/kk_levelA/s<seed>/`. When done: apply the §19 and §20 rules (puzzles scored on first answers), record in m8,
+and fill the paper's empty level-A cells (Table 2, Figure 1b–c).
 
 ## Next phases, in order
 
-0. **Rescore** (running): final step-2 numbers.
+0. **Step 2 final** (done 2026-11-16): first-answer scoring; retraining with a trainable end-of-turn token is open.
 1. **Defenses on the testbed.** A rewriting defense first (prompt-based, cheap), then ADS and PoE. Those need the
    setup's sampling code adapted to the 32B teacher and the puzzle prompt, and a proxy student. For each defense, train
    the defended student with the step-2 recipe. Report the share of the protectable part it removes, (U − D_φ) /

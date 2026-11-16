@@ -95,7 +95,12 @@ def load_common(a):
         r = rows.get(ex["example_id"])
         if r is None or r.get("prompt", "").strip() != ex["problem"].strip():
             raise SystemExit("train problems do not match the teacher file: wrong seed or file")
-        train.append({"example_id": ex["example_id"], "problem": ex["problem"], "teacher_answer": r.get("extracted_answer") or ""})
+        item = {"example_id": ex["example_id"], "problem": ex["problem"], "teacher_answer": r.get("extracted_answer") or ""}
+        if cfg.data.dataset_name == "math":  # m8 §19: the teacher's own boxed text (§16 deviation: commas kept)
+            from dg_answer_dist import teacher_ref
+            ref = teacher_ref(r)
+            item["teacher_ref"], item["teacher_hint"] = ref, ref[len("\\boxed{"):-1] if ref else ""
+        train.append(item)
     if a.limit:  # smoke tests only
         train = train[:a.limit]
     tag = "fewshot_" if a.fewshot else ""
@@ -129,7 +134,15 @@ def phase_gen(a) -> int:
         cache = out / f"round_{name}.json"
         if cache.exists():
             return json.loads(cache.read_text())
-        if a.fewshot:
+        if a.fewshot and cfg.data.dataset_name == "math":  # m8 §19: Lewkowycz et al.'s 4 MATH examples
+            from dg_answer_dist import minerva_prompt, minerva_solution
+            prompts = [minerva_prompt(x["problem"], x["teacher_hint"] if hint else None) for x in items]
+            sp = SamplingParams(n=n, temperature=a.temperature, top_p=0.95, max_tokens=cfg.generation.max_new_tokens,
+                                seed=cfg.run.seed, stop=["\nProblem:"])
+            outs = llm.generate(prompts, sp)
+            texts = [(i, minerva_solution(c.text)) for i, o in enumerate(outs) for c in o.outputs]
+            texts = [(i, t) for i, t in texts if t]
+        elif a.fewshot:
             prompts = [fewshot_prompt(x["problem"], x["teacher_answer"] if hint else None) for x in items]
             sp = SamplingParams(n=n, temperature=a.temperature, top_p=0.95, max_tokens=cfg.generation.max_new_tokens,
                                 seed=cfg.run.seed, stop=["\nQ:"])
@@ -159,7 +172,8 @@ def phase_gen(a) -> int:
         found = {x["example_id"]: None for x in items}
         for i, t in texts:
             x = items[i]
-            if found[x["example_id"]] is None and x["teacher_answer"] and is_correct_gsm8k(t, f"\\boxed{{{x['teacher_answer']}}}"):
+            ref = x.get("teacher_ref") or (f"\\boxed{{{x['teacher_answer']}}}" if x["teacher_answer"] else "")
+            if found[x["example_id"]] is None and ref and is_correct_gsm8k(t, ref):
                 found[x["example_id"]] = t
         cache.write_text(json.dumps(found))
         return found

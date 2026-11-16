@@ -60,10 +60,13 @@ MINERVA = [
 FINAL_RE = re.compile(r"Final Answer:\s*The final answer is\s*\$?(.+?)\$?\s*\.\s*I hope", re.S)
 
 
-def minerva_prompt(problem: str) -> str:
-    shots = "".join(f"Problem:\n{p}\n\nSolution:\n{s}\nFinal Answer: The final answer is ${a}$. I hope it is correct.\n\n"
-                    for p, s, a in MINERVA)
-    return shots + f"Problem:\n{problem.strip()}\n\nSolution:\n"
+def minerva_prompt(problem: str, hint: str | None = None) -> str:
+    """The 4-shot MATH prompt; with a hint (STaR's rationalization, m8 §19), every problem shows its final answer."""
+    def q(text, ans):
+        return text + (f"\n(The final answer is ${ans}$.)" if hint is not None else "")
+    shots = "".join(f"Problem:\n{q(p, a)}\n\nSolution:\n{s}\nFinal Answer: The final answer is ${a}$. I hope it is "
+                    f"correct.\n\n" for p, s, a in MINERVA)
+    return shots + f"Problem:\n{q(problem.strip(), hint)}\n\nSolution:\n"
 
 
 def minerva_solution(text: str) -> str | None:

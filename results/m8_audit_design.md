@@ -1299,6 +1299,118 @@ Rule check, the same under both scorings (margin 10.2 as scored, 12.1 on first a
 **Provisional verdict:** for the first time in this project, the teacher's solutions are needed against an attacker
 who owns an open reasoning model, and something is left to protect. The final numbers come from the rescore.
 
+**Rescore (2026-11-15 20:07 – 2026-11-16 01:01; `test_eot/`; 18 runs; GPUs 0–4, 6, 7).** Stopping at `<|eot_id|>`
+did not change the outputs. The reasoning students (U, F_D, Solo_D) still finish only 3–7% of their tries, averaging
+about 8,000 tokens, and half of U's tries still show an invented next turn right after an answer line.
+
+**Root cause, found 2026-11-16.** The students are LoRA adapters on the attention and MLP projections of *base*
+Llama-3.2-3B. The base model's chat special tokens were never trained, and the LoRA does not touch the embedding or
+output rows. So a student cannot produce `<|eot_id|>`: after its answer it emits a garbage token
+(`…is a knight.átkuüyorduuser`) and runs on to the cap. Setup 2's recipe for this base model has the same property.
+This is a property of how the students were trained, not of the scoring.
+
+| student (3 seeds) | rescore, last answer (rule as written) | first answer (first CONCLUSION after the first `</think>`) |
+| --- | --- | --- |
+| U | 38.8 / 45.6 / 40.9 → **41.8%** | 48.2 / 50.6 / 47.7 → **48.8%** |
+| F_D | 20.0 / 20.3 / 20.4 → **20.2%** | 24.7 / 21.8 / 20.7 → **22.4%** |
+| Solo_D | 8.3 / 14.7 / 11.7 → 11.6% | 8.6 / 15.7 / 14.3 → 12.9% |
+| Solo_C | 4.5 / 4.5 / 5.0 → 4.7% | 4.5% |
+| Solo_B | 0.7 / 0.4 / 0.3 → 0.5% | 0.5% |
+| untrained | 0.1 / 0.0 / 0.7 → 0.3% | 0.3% |
+
+Rule check (rescore, last answer; margin 10.4):
+
+| test | difference | 95% CI | verdict |
+| --- | --- | --- | --- |
+| necessity at B: U − Solo_B | +41.3 | 32.4 to 50.2 | passes |
+| necessity at C: U − Solo_C | +37.1 | 28.3 to 45.9 | passes |
+| necessity at D: U − Solo_D | +30.2 | 28.0 to 32.4 | passes |
+| protectable part at D: U − F_D | +21.5 | 13.2 to 29.9 | exists |
+
+On first answers (margin 12.1): +48.4, +44.4, +36.0 and +26.4 (19.7 to 33.1). The same verdicts.
+
+**Verdict, the same under all three scorings** (first scoring, rescore, first answer): the teacher is needed at B, C
+and D, and a protectable part exists at D. The answers add F_D − Solo_D = +8.7 points (1.1 to 16.2) on the rescore and
++9.5 (−4.6 to 23.7) on first answers; this is secondary and not part of the rule.
+
+**Open, for the authors:** which numbers the paper reports. There are two options:
+- **(a)** score the student's first complete answer;
+- **(b)** retrain the students with the special-token rows trainable (PEFT `modules_to_save` or `trainable_token_indices`
+  for `<|eot_id|>`) so they stop cleanly. That is 15 training runs plus scoring, about a day of GPU time.
+
+Until decided, the paper uses the first-answer numbers, marked provisional.
+
+**Decision (2026-11-16).** The draft reports (a): each student's **first complete answer**, the first CONCLUSION
+section after its first `</think>`, or in the whole text if there is none. This is the natural reading of one try,
+because the student cannot stop after it. (b), retraining with a trainable end-of-turn token, stays open for before
+submission. The first-answer numbers are final under (a): U 48.8%, F_D 22.4%, Solo_D 12.9%, Solo_C 4.5%, Solo_B 0.5%,
+untrained 0.3%. Margin 12.1. Necessity passes at B, C and D (U − Solo_D = +36.0, 27.9 to 44.0). The protectable part
+at D exists (U − F_D = +26.4, 19.7 to 33.1). All later puzzle students (§20 and after) are scored the same way.
+
+
+## 19. Level A on MATH: self-training on the teacher's answers (fixed 2026-11-16, before any result; go-ahead from the user)
+
+**Why.** The MATH level-A cell is empty (Table 2 and Figure 1b of the draft). It is the floor F_A of an attacker who
+owns only the student.
+
+**What is run.** `scripts/52_levelA_fill.sh`, job `math <seed>`, calling `scripts/dg_star.py --fewshot` on the MATH
+configs.
+- **Seeds and data:** 123–125. Each seed's own pool of 5,000 MATH training problems, with that seed's teacher answers
+  from the regenerated U run (§12).
+- **Prompt:** the same procedure as GSM8K STaR (§9.3, §13), except that the prompt is the 4 MATH examples of
+  Lewkowycz et al. (`minerva_prompt` in `dg_answer_dist.py`, as used for §16).
+- **Generation:** 8 tries per problem at temperature 0.8, up to 1,024 tokens.
+- **Keeping a try:** the first try whose answer matches the teacher's answer, using the teacher's own boxed text as the
+  reference (§16 deviation).
+- **Hints:** unsolved problems get the teacher's answer as a hint, on every example, for 8 and then 32 more tries. The
+  kept text has no hint. Problems still unsolved are reported and not trained on.
+- **Training and scoring:** U's recipe (LoRA r128, 3 epochs), scored on the 5,000 MATH test problems with the setup's
+  evaluation, exactly as U, Solo and the untrained student were.
+- **Expectation, from §16:** the base student matches the teacher on only 8% of tries, and 3,001 of 5,000 problems
+  never matched in 16 tries at temperature 0.6. So most kept solutions will come from the hint rounds.
+
+**Rule.** F_A = the STaR student's test accuracy per seed. Margin = (U − untrained) / 4 = (15.47 − 0.85) / 4 = 3.7.
+- **The protectable part at A exists** if the 3-seed mean of U − F_A is above 3.7 and its 95% interval excludes 0.
+- **If it does not exist:** on MATH too, the answers alone carry what the teacher's solutions give the weakest
+  attacker.
+- R_A = the untrained student (0.85%), so necessity at A passes (U − R_A = +14.6).
+
+## 20. Level A on the puzzles: self-training on the teacher's answers (fixed 2026-11-16, before any result; go-ahead from the user)
+
+**Why.** The puzzle level-A cell is empty (Figure 1c).
+
+**What is run.** `scripts/52_levelA_fill.sh`, job `kk <seed>`.
+- **Generation** (`scripts/kk_star.py`):
+  - The pool is §18's 2,000 training puzzles. The teacher's answer is its first try's CONCLUSION (§18 writers); the 288
+    puzzles without a readable answer are reported and not trained on.
+  - The untrained base student is prompted with Xie et al.'s instruction and their two-person worked demonstration
+    (`demonstration_2char`, verbatim; it comes from their repository, not from a model we own), then the puzzle.
+  - 8 tries at temperature 0.8, up to 2,048 tokens. The first try whose CONCLUSION equals the teacher's answer is
+    kept.
+  - Unsolved puzzles get the teacher's answer as a hint, on the demonstration too, for 8 and then 32 more tries. The
+    kept text has no hint. Puzzles still unsolved are reported and not trained on.
+- **Training:** `scripts/kk_sft.py` with §18's recipe.
+- **Scoring:** `scripts/kk_eval.py` on the 1,000 test puzzles, scored on first answers (§18 decision).
+- **Seeds:** 123–125. The seed sets both generation and training; the pool is the same for every seed.
+
+**Rule.** F_A = the STaR student's first-answer accuracy per seed. U, untrained and the margin (12.1) are §18's,
+scored on first answers.
+- **The protectable part at A exists** if the 3-seed mean of U − F_A is above 12.1 and its 95% interval excludes 0.
+- **F_A against F_D** (22.4%) is reported: how much the open reasoner adds to an answers-only attacker.
+- R_A = the untrained student (0.3%), so necessity at A passes.
+
+**Smoke test first,** for both §19 and §20: 16 problems, 2 tries per round, 2 training steps, 10 test puzzles; no
+threshold.
+
+**Smoke test (2026-11-16 16:12 – 16:20).** Both pipelines ran end to end.
+- **MATH (16 problems):** 1 solved alone, 9 with the hint, 5 more in the salvage round, 1 unsolved.
+- **Puzzles (16):** 2 had no teacher answer, and only 1 of 14 was kept.
+
+A probe of the hint prompt found no bug. The base student copies the hinted answer on 19 of 64 tries (8 tries on 8
+puzzles); the other tries mostly fall into a repetition loop ("Knight is a knight and Knight is a knight …") and hit
+the 2,048-token cap. With the full 8 + 8 + 32 tries per puzzle, most puzzles should yield a kept solution, almost all
+of them from the hint rounds. No setting was changed.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
