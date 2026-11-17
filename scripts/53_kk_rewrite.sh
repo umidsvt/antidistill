@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# Phase 1, first defense (results/m8_audit_design.md §21): the teacher rewrites its 2,000 step-2 training solutions with
-# Ma et al.'s optimized instruction (scripts/kk_rewrite.py; two tensor-parallel-2 copies, half the puzzles each), then
+# Phase 1, first defense (results/m8_audit_design.md §21 and amendments): gpt-oss-120b, Ma et al.'s rewriter, rewrites the
+# teacher's 2,000 step-2 training solutions with Ma et al.'s optimized instruction (scripts/kk_rewrite.py; two
+# tensor-parallel-2 copies, half the puzzles each; REWRITER=teacher for the R1-Distill-Qwen-32B smoke tests), then
 # the defended student D_rewrite is trained and scored, seeds 123-125 (scripts/51_kk_step2.sh, STUDENTS=D_rewrite).
 #   REWRITE_GPUS="2,3 6,7" TRAIN_GPUS="2 3 6 7" setsid nohup scripts/53_kk_rewrite.sh > logs/kk_rewrite.log 2>&1 < /dev/null & disown
-#   SMOKE=1 REWRITE_GPUS="2,3" scripts/53_kk_rewrite.sh     # 16 rewrites, no training; into outputs/kk_step2/rewrite_smoke_think/
-# The rewriter thinks first (§21 amendment of 2026-11-17); the first smoke test (empty thinking block, 8 rewrites) is in
-# outputs/kk_step2/rewrite_smoke/.
+#   SMOKE=1 REWRITE_GPUS="2,3" scripts/53_kk_rewrite.sh     # 16 rewrites, no training; outputs/kk_step2/rewrite_smoke_gptoss/
+# Earlier smoke tests with the teacher as rewriter: outputs/kk_step2/rewrite_smoke/ (empty thinking block, 8 rewrites)
+# and rewrite_smoke_think/ (thinking first, 16).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 source scripts/gpu_env.sh
 export HF_HUB_DISABLE_IMPLICIT_TOKEN=1 HF_HUB_OFFLINE=1 TOKENIZERS_PARALLELISM=false VLLM_WORKER_MULTIPROC_METHOD=spawn
-PY=.venv-dg/bin/python; NEED_MIB=${NEED_MIB:-42000}; OUT=outputs/kk_step2/rewrite; LIM=()
-[[ -n "${SMOKE:-}" ]] && { OUT=outputs/kk_step2/rewrite_smoke_think; LIM=(--limit 16); }
+REWRITER=${REWRITER:-gpt-oss-120b}
+if [[ $REWRITER == teacher ]]; then PY=.venv-dg/bin/python; SM=rewrite_smoke_think; else PY=.venv-infer/bin/python; SM=rewrite_smoke_gptoss; fi
+export PATH="$PWD/${PY%/python}:$PATH"   # vLLM builds kernels with the venv's ninja at start-up
+NEED_MIB=${NEED_MIB:-42000}; OUT=outputs/kk_step2/rewrite; LIM=()
+[[ -n "${SMOKE:-}" ]] && { OUT=outputs/kk_step2/$SM; LIM=(--limit 16); }
 read -r -a RG <<< "${REWRITE_GPUS:?set REWRITE_GPUS}"; N=${#RG[@]}
 mkdir -p "$OUT"
 ts() { date '+%F %T'; }
@@ -24,7 +28,8 @@ copy() {   # <gpus> <part>: one rewriting copy, with the exit watchdog of the ot
     [[ -f "$f.summary.json" ]] && break
     wait_free "$gl"; echo "[$(ts)] REWRITE part $k/$N on GPUs $gl (attempt $i)"
     CUDA_VISIBLE_DEVICES=$gl $(pin "$gl") $PY scripts/kk_rewrite.py --pool data/kk/step2_train.jsonl \
-      --gen outputs/kk_step2/gen --out "$f" --tp 2 --part "$k" --parts "$N" "${LIM[@]}" > "$OUT/part$k.log" 2>&1 &
+      --gen outputs/kk_step2/gen --out "$f" --rewriter "$REWRITER" --tp 2 --part "$k" --parts "$N" "${LIM[@]}" \
+      > "$OUT/part$k.log" 2>&1 &
     pid=$!
     while kill -0 "$pid" 2>/dev/null; do
       if [[ -f "$f.summary.json" ]]; then sleep 120; kill -0 "$pid" 2>/dev/null && { pkill -9 -P "$pid"; kill -9 "$pid"; }; break; fi
@@ -34,7 +39,7 @@ copy() {   # <gpus> <part>: one rewriting copy, with the exit watchdog of the ot
   done
   [[ -f "$f.summary.json" ]] && echo "[$(ts)] REWRITE part $k done: $(cat "$f.summary.json" | tr -d '\n ')" || echo "[$(ts)] REWRITE part $k FAILED: $(grep -a -m1 Error "$OUT/part$k.log" | cut -c1-160)"
 }
-echo "[$(ts)] trace rewriting (m8 §21)${SMOKE:+, smoke test}: copies on ${RG[*]}"
+echo "[$(ts)] trace rewriting (m8 §21), rewriter $REWRITER${SMOKE:+, smoke test}: copies on ${RG[*]}"
 for k in $(seq 1 "$N"); do copy "${RG[$((k-1))]}" "$k" & done
 wait
 for k in $(seq 1 "$N"); do [[ -f "$OUT/part$k.jsonl.summary.json" ]] || { echo "[$(ts)] missing part $k; stopping"; exit 1; }; done

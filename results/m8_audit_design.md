@@ -1545,6 +1545,52 @@ This replaces the "Generation" item above; everything else in §21 is unchanged.
 - **Reading:** the teacher, with or without thinking, does not carry out Ma et al.'s instruction; it re-solves the
   puzzle. What it produces would measure "a short summary of the teacher's own solution", not the published defense.
 
+**Second amendment (2026-11-17, before any result of the new rewriter; the user approved gpt-oss-120b).** Replaces
+the rewriter and generation items above; the instruction, input, answer handling, format, student and quantities of
+§21 are unchanged.
+- **Rewriter:** gpt-oss-120b (`openai/gpt-oss-120b`, lab cache), the rewriter Ma et al. used and the one their
+  instruction was optimized for. It runs in `.venv-infer` (vLLM 0.11), tensor parallel 2.
+- **Generation:** the model's own chat template with its default system message and default reasoning effort (Ma et
+  al. do not state theirs). The instruction and the teacher's solution go in one user message, as before. Temperature
+  0.6 (Ma et al., Appendix D.2), top-p 1.0 (vLLM default), up to 16,384 new tokens, vLLM seed 123. The kept rewrite is
+  the text of the model's final channel; its analysis channel is discarded. A try without a final channel is retried
+  with seeds 124 and 125; after three failures the last try's text is kept and counted; above 2% of the 2,000, the
+  authors decide.
+- **Lengths** are counted with the teacher's tokenizer, so the ratio to the original is in the same units.
+- **Departure from the teacher, reported:** where the rewriter writes its own CONCLUSION (cut, as before), whether it
+  matches the teacher's answer; separately on puzzles where the teacher's answer is wrong. A stronger rewriter could
+  correct the teacher in the defended text; this measures how often its own conclusion says so.
+- **Smoke test:** the first 16 puzzles, with the same checks and the same go or no-go (at least 12 of 16 in a formal,
+  technical register).
+- **Cost** (reported): a second, 120B model's inference for every released solution. The final answers users see
+  are unchanged by construction.
+
+**Smoke test with gpt-oss-120b (2026-11-17).**
+- **First try: an inference bug.** 14 of 16 outputs were "!!!…" to the 16,384-token cap; 1 good, 1 good but capped.
+  Output kept in `outputs/kk_step2/rewrite_smoke_gptoss_nan/`.
+  - A probe (first 16 prompts, 48 tokens) found the cause: vLLM's prefix caching.
+    - Default settings: 15 of 16 broken; every prompt after the first reuses the cached shared prefix (system
+      message and instruction) and decodes NaN logits.
+    - Prefix caching off: 0 of 16 broken. Eager mode: 0 of 16. Chunked prefill off: 15 of 16.
+  - **Deviation:** prefix caching is off for gpt-oss (`scripts/kk_rewrite.py`). It changes no sampling setting.
+  - Also: the launcher puts the venv's `bin` on PATH; vLLM 0.11 builds a kernel with `ninja` at start-up.
+- **Second try (11:52 – 11:54, GPUs 2–3; `outputs/kk_step2/rewrite_smoke_gptoss/part1.jsonl`).**
+  **Verdict: go (16 of 16 in a formal, technical register; 12 needed).**
+  - **Mechanics:** 16 of 16 rewritten; none capped, none without a final channel, no retries, no "!!!" output. Every
+    appended answer parses to the teacher's labels (2 of 16 have no teacher answer and keep the rewrite as it is).
+  - **Length:** reasoning 436 tokens on average. Rewrites average 1,294 teacher tokens, 0.39 of the originals
+    (620 to 1,913 against 1,722 to 8,192).
+  - **Content:** every rewrite recasts the deduction as propositional logic in LaTeX ("Let 𝔻 = {…} denote the seven
+    denizens… unary predicate K(x)…"), with terms such as "denotators", "ontic statuses", "Kripke-style model". Each
+    ends with its own statement of the assignment.
+  - **Departure from the teacher.** The pre-written measure found nothing to measure: gpt-oss never writes a
+    CONCLUSION list, so no rewrite was parsed. By reading the 6 puzzles where it matters:
+    - Teacher wrong (4): 3 rewrites restate the teacher's wrong answer. In 1 (#2) the rewrite states the true answer,
+      so the defended text contradicts the teacher's CONCLUSION appended after it.
+    - No teacher answer (2): the rewriter supplies its own answer, once right (#15) and once wrong (#13).
+    - For the full run this is reported by reading a random sample of 50 rewrites (seed 123) with a wrong or missing
+      teacher answer. It is descriptive and changes no verdict.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
