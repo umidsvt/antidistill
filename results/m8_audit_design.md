@@ -1426,6 +1426,28 @@ puzzles); the other tries mostly fall into a repetition loop ("Knight is a knigh
 the 2,048-token cap. With the full 8 + 8 + 32 tries per puzzle, most puzzles should yield a kept solution, almost all
 of them from the hint rounds. No setting was changed.
 
+**Result (2026-11-17; `outputs/kk_levelA/s<seed>/`, test files `test_eot/results.jsonl`, scored on first answers).**
+
+| Seed | Solved alone | With hint | Salvaged | Kept | F_A (%) | U (%) | U − F_A |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 123 | 9 | 1,655 | 48 | 1,712 | 2.1 | 48.2 | 46.1 |
+| 124 | 11 | 1,656 | 45 | 1,712 | 0.8 | 50.6 | 49.8 |
+| 125 | 10 | 1,652 | 50 | 1,712 | 2.3 | 47.7 | 45.4 |
+| Mean | | | | | **1.7** | 48.8 | **+47.1** |
+
+- Every puzzle with a teacher answer yielded a kept solution (none unsolved); 288 had no teacher answer, as fixed.
+  1,435 of the 1,712 kept answers are the true solution (the teacher's answer is wrong on the other 277), the same
+  for every seed.
+- Almost every kept solution comes from the hint rounds (about 99%): the base student copies the given answer after a
+  text it cannot use.
+- **Verdict: the protectable part at A exists.** U − F_A = +47.1 points, 95% interval 41.2 to 53.0, above the 12.1
+  margin.
+- **F_A against F_D:** F_D − F_A = +20.7 points (15.4 to 25.9). The open 7B reasoner is what makes the teacher's
+  answers useful here.
+- **What the answers carry at A:** (F_A − untrained) / (U − untrained) = (1.7 − 0.3) / (48.8 − 0.3) = 3%, against
+  58% on GSM8K (§13) and 60% on MATH (§19).
+- Generation took 147–155 minutes per seed on one GPU; training and scoring about 40 minutes more.
+
 ## 21. Phase 1: defenses on the puzzle testbed, first defense: trace rewriting (fixed 2026-11-16, before any result; rule and rewriter approved by the user)
 
 **Why.** §18 found a protectable part at level D of the puzzle testbed: U − F_D = +26.4 points (first answers). Phase 1
@@ -1476,6 +1498,52 @@ puzzles on first answers (§18 decision). U = 48.8%, F_D = 22.4%, untrained 0.3%
 
 **Smoke test first:** 16 rewrites. Check the format, that the appended answer is the teacher's, and the length. No
 threshold.
+
+**Smoke test (2026-11-16 21:51 – 21:55, GPUs 2–3).** Deviation: 8 rewrites were run, not 16 (`--limit 8` in
+`scripts/53_kk_rewrite.sh`). Output `outputs/kk_step2/rewrite_smoke/part1.jsonl`.
+- **Format and answers:** all 8 have the `<think>` rewrite `</think>` CONCLUSION shape, and every appended answer
+  parses to exactly the teacher's labels. None hit the cap.
+- **Length:** the rewrites are 61–1,166 tokens against 1,722–8,011 for the originals; mean ratio 0.12.
+- **Content:** none is written in the esoteric, technical style the instruction asks for.
+  - 5 of 8 are plain, readable step-by-step summaries of the teacher's deduction, with the answer list first.
+  - 1 is the answer list with a one-sentence justification.
+  - 2 are only the answer list, one of them in French.
+
+So with the empty thinking block, the rewriter summarizes its solution instead of obfuscating it. This is a property
+of the rewriter as configured, not a bug in the pipeline. The full run is on hold until the authors decide whether to
+keep the rule as it is or change the rewriter setting.
+
+**Amendment (2026-11-17, before any result of the new setting; the user chose option 1: "the teacher thinks first").**
+This replaces the "Generation" item above; everything else in §21 is unchanged.
+- **Generation:** no prefilled empty thinking block. The rewriter (still the teacher, R1-Distill-Qwen-32B) thinks
+  first, as it was trained to, then writes the rewrite. The kept rewrite is the text after its last `</think>`; its
+  thinking is discarded. Temperature 0.6, top-p 0.95, vLLM seed 123, tensor parallel 2. The budget rises to 16,384
+  new tokens (thinking and rewrite together).
+- **Thinking that never closes:** if a try has no `</think>` within the budget, that solution is tried again with seed
+  124, then 125. If all three tries fail, the last try's text is kept as it is and counted, as capped rewrites are.
+  If that happens to more than 2% of the 2,000 solutions, the authors decide before any training.
+- **Reported in addition:** the rewriter's thinking length, the rewrite's length without the thinking (against the
+  original solution), retries, and how many never closed.
+- **Smoke test: 16 rewrites** (the first 16 puzzles of the pool). Check format, appended answer and length, as before.
+  **Go or no-go for the full run:** go if at least 12 of the 16 rewrites present the deduction in a formal, technical
+  register, as the instruction asks, rather than a plain summary or a bare answer list. This is judged by reading;
+  examples are quoted in the result. Otherwise the authors decide.
+
+**Smoke test with thinking (2026-11-17 00:16 – 00:27, GPUs 2–3; `outputs/kk_step2/rewrite_smoke_think/part1.jsonl`).**
+**Verdict: no-go (0 of 16 in a formal, technical register; 12 needed).** Back to the authors.
+- **Mechanics:** 16 of 16 rewritten, none capped, no thinking left unclosed, no retries. Every appended answer parses
+  to the teacher's labels; 2 of the 16 had no readable teacher answer and keep the rewrite as it is.
+- **Length:** thinking averages 1,954 tokens. The kept rewrites average 294 tokens (0 to 1,004), 0.08 of the
+  originals.
+- **Content:**
+  - 0 of 16 thinking traces mention the rewriting task (no "rewrite", "formal", "technical", "esoteric",
+    "obfuscate"). Each starts "Alright, so I'm trying to solve this knights and knaves puzzle" and solves the puzzle
+    again from the statements quoted in the teacher's solution.
+  - The text after the thinking is a plain summary of that new solution: an answer list with one sentence
+    (#0, #1, #4, #8, #10), or a short plain step list (the rest).
+  - In #7 the rewriter wrote only a CONCLUSION, which is cut, so the defended text is the teacher's answer alone.
+- **Reading:** the teacher, with or without thinking, does not carry out Ma et al.'s instruction; it re-solves the
+  puzzle. What it produces would measure "a short summary of the teacher's own solution", not the published defense.
 
 ## Sources
 
