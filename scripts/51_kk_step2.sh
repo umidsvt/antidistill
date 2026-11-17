@@ -106,7 +106,11 @@ job() {   # <gpu> <student|untrained> <seed>
 phase_train() {
   local q="$BASE/queue.txt" lock="$BASE/queue.lock" g
   : > "$q"
-  for seed in $SEEDS; do echo "untrained $seed" >> "$q"; for s in U Solo_D F_D Solo_C Solo_B; do echo "$s $seed" >> "$q"; done; done
+  # STUDENTS / WITH_UNTRAINED=0 restrict the queue (m8 §21: only the defended student D_rewrite)
+  for seed in $SEEDS; do
+    [[ ${WITH_UNTRAINED:-1} == 1 ]] && echo "untrained $seed" >> "$q"
+    for s in ${STUDENTS:-U Solo_D F_D Solo_C Solo_B}; do echo "$s $seed" >> "$q"; done
+  done
   echo "[$(ts)] TRAIN queue: $(wc -l < "$q") jobs on GPUs $TRAIN_GPUS"
   for g in $TRAIN_GPUS; do
     ( while true; do

@@ -1375,6 +1375,21 @@ configs.
   attacker.
 - R_A = the untrained student (0.85%), so necessity at A passes (U − R_A = +14.6).
 
+**Result (2026-11-16 16:33 – 20:53; GPUs 2–4).** From `outputs/setup2/star_fewshot_math_s<seed>/test_star.json`, 5,000
+MATH test problems:
+
+| seed | kept: own / hint / salvage | unsolved (reported) | F_A | U (§12) | U − F_A |
+| --- | --- | --- | --- | --- | --- |
+| 123 | 1,444 / 3,516 / 8 | 32 | 10.00% | 15.30% | +5.30 |
+| 124 | 1,456 / 3,501 / 11 | 32 | 9.56% | 15.42% | +5.86 |
+| 125 | 1,442 / 3,518 / 7 | 33 | 9.14% | 15.70% | +6.56 |
+| mean | | | **9.57%** | 15.47% | **+5.91** (4.34 to 7.48) |
+
+- **The protectable part at A exists on MATH:** +5.9 points against a margin of 3.7.
+- **The answers carry most of what the teacher adds:** 8.7 of 14.6 points (60%; F_A − untrained = 9.57 − 0.85). The
+  same share as on GSM8K (58%).
+- About 29% of the kept solutions are the student's own; the rest come from the hint rounds.
+
 ## 20. Level A on the puzzles: self-training on the teacher's answers (fixed 2026-11-16, before any result; go-ahead from the user)
 
 **Why.** The puzzle level-A cell is empty (Figure 1c).
@@ -1410,6 +1425,57 @@ A probe of the hint prompt found no bug. The base student copies the hinted answ
 puzzles); the other tries mostly fall into a repetition loop ("Knight is a knight and Knight is a knight …") and hit
 the 2,048-token cap. With the full 8 + 8 + 32 tries per puzzle, most puzzles should yield a kept solution, almost all
 of them from the hint rounds. No setting was changed.
+
+## 21. Phase 1: defenses on the puzzle testbed, first defense: trace rewriting (fixed 2026-11-16, before any result; rule and rewriter approved by the user)
+
+**Why.** §18 found a protectable part at level D of the puzzle testbed: U − F_D = +26.4 points (first answers). Phase 1
+measures how much of it published defenses remove. Rewriting comes first because it is cheap and has no strength
+setting. ADS and PoE follow, each with its own rule; their strength will be the strongest that lowers the teacher's own
+accuracy by at most 5 points.
+
+**Defense.** Ma et al. 2026's optimized instruction-based rewriting (OPT, their best), applied to the teacher's 2,000
+step-2 training solutions, the ones U was trained on.
+- **Rewriter:** the teacher itself, R1-Distill-Qwen-32B; the user chose this over a separate model. The provider
+  rewrites its own outputs, so no other model's knowledge enters the defended text. (Ma et al. used gpt-oss-120b to
+  rewrite a 7B teacher.)
+- **Instruction**, verbatim from their Appendix A.2: "Your task is to process a provided chain of logical deductions and
+  reformulate it utilizing an esoteric, formal, and densely technical lexicon, thereby obfuscating its clarity for a
+  non-specialist audience. Refrain from any extraneous discourse."
+- **Input:** as in their method, the instruction followed by the teacher's solution (its reasoning, then its answer
+  part), with no separate question.
+- **Generation:** an empty thinking block is prefilled, so the rewriter writes the rewrite directly. Temperature 0.6,
+  top-p 0.95, up to 8,192 new tokens, vLLM seed 123, tensor parallel 2 (two copies, half the puzzles each).
+- **Answers preserved by construction:**
+  - Any CONCLUSION section the rewriter writes is cut off.
+  - The teacher's own CONCLUSION section is appended verbatim, so every defended solution ends with exactly the
+    teacher's answer.
+  - For 15 solutions the answer is readable but not laid out as a numbered CONCLUSION list. There the same answer is
+    appended in the standard layout. (Checked offline: on the other 1,697, the extracted section parses to exactly the
+    teacher's answer.)
+  - Where the teacher's solution has no readable answer (288 puzzles), the rewrite is used as it is, as U uses the
+    teacher's text as it is.
+- **Format:** the defended training text is `<think>` + rewrite + `</think>` + the teacher's CONCLUSION, the same
+  shape as U's targets. Rewrites that hit the token cap are kept and counted.
+
+**Student.** D_rewrite, trained on the defended solutions with §18's recipe, seeds 123–125, scored on the 1,000 test
+puzzles on first answers (§18 decision). U = 48.8%, F_D = 22.4%, untrained 0.3% (§18).
+
+**Quantities.**
+- **Protection:** the attacker's best student under the defense is max(D_rewrite, F_D), because it can ignore the
+  defended solutions and use the answers. Protection = U − max(D_rewrite, F_D).
+- **Share removed** = protection / (U − F_D), reported with the 95% interval of U − D_rewrite over the 3 seeds.
+- **Cost to users:** the final answers are unchanged by construction. Reported: the length of the rewrites against the
+  originals, and the share that hit the cap.
+
+**What the outcomes mean.**
+- **D_rewrite not clearly below U** (U − D_rewrite under the margin of 12.1, or its interval includes 0): rewriting
+  protects nothing, even where protection is possible.
+- **D_rewrite between F_D and U:** the share removed is the first measured protection share of a published defense.
+- **D_rewrite at or below F_D:** rewriting removes all that any answer-preserving defense can remove. Below F_D, the
+  defended solutions are worse than none, but the attacker still keeps F_D.
+
+**Smoke test first:** 16 rewrites. Check the format, that the appended answer is the teacher's, and the length. No
+threshold.
 
 ## Sources
 
