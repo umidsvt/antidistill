@@ -1745,6 +1745,39 @@ of 16; no accuracy read (`outputs/kk_defense/timing/*/summary.json`).
   with ADS 122 h and with PoE 107 h. Total 274 h, about 11.4 days of one GPU group, plus 6 students.
 - **Verdict:** over the 3-day budget. The authors decide on a smaller plan.
 
+**Authors' decision (2026-11-18): ADS only, after a speed check.** Fixed before any calibration result.
+- **PoE is not run.** It is reported as not run, with the reason: about 4.5 days of one GPU group for its 2,000
+  solutions. ADS is the published defense; PoE uses the same proxy's logits in a simpler way.
+- **Speed check, part 1: static cache with compilation.** Hugging Face `generate` with `cache_implementation="static"`
+  (which compiles the forward pass) was probed on Qwen2.5-3B split over 2 GPUs, 8 prompts, greedy, 256 steps
+  (`outputs/kk_defense/speed/compile_probe*`).
+  - With flash attention it was slower: 92 and 204 ms per step against 58 ms eager.
+  - With sdpa, compilation failed.
+  - Dropped.
+- **Speed check, part 2: batch size.** Batch 25 instead of 16, so that the 100 calibration puzzles fill 4 batches.
+  - The estimated peak is 41 GiB on the busiest teacher GPU: 22 GiB of weights plus the cache, which grows with the
+    batch from 12 GiB at 16.
+  - The first calibration run checks it. If it runs out of memory, every run uses batch 20 instead, recorded here.
+  - The first run also gives the speed at batch 25.
+  - Batch size changes only which puzzles share a batch, not the method.
+- **Calibration:** unchanged from the rule above. Baseline, then ADS λ ∈ {0.05, 0.1, 0.2, 0.4} on the 100
+  calibration puzzles, one try each, strict checker.
+  - The choice is computed by `scripts/kk_defend.py choose` from the stored tries: the largest λ whose number of
+    correct puzzles is at least the baseline's minus 5.
+  - Wilson 95% intervals are reported for each accuracy.
+- **Defended solutions:** at the chosen λ, one try per training puzzle (all 2,000), batch 25. Puzzles are sorted by
+  the teacher's step-2 length (speed only, about 7%).
+  - The run resumes from its stored tries after a crash. A resumed run's sampling seeds differ from an uninterrupted
+    run's, which is recorded if it happens.
+- **D_ADS:** built like U (§18): every one of the 2,000 solutions, as written, wrong or unfinished included. Students
+  D_ADS_s123–125 use §18's recipe, scored on first answers (`test_eot`).
+- **Outcomes:** as in §21. Protection = U − max(D_ADS, F_D); share removed = protection / (U − F_D). Cost: the
+  teacher's calibration accuracy at the chosen λ, its finished rate, and its accuracy on the 2,000 training puzzles.
+- **GPUs:** group A (0–2 teacher, 3 proxies). Each run waits until all four GPUs are free of other processes and
+  have 42 GB free.
+- **Estimated time:** calibration about 19 h; 2,000 solutions about 76 h; 3 students about 5 h in parallel. About
+  4 days in all.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

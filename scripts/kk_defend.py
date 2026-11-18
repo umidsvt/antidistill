@@ -6,8 +6,12 @@
         the puzzle prompt instead of the GSM8K one).
   gen   The teacher (R1-Distill-Qwen-32B, Hugging Face, split over the visible GPUs) writes one try per puzzle under
         standard sampling, ADS (their AntidistillationLogitsProcessor, identity penalty, eps 0.01) or PoE (their
-        ProductOfExpertsLogitsProcessor). The teacher fills all visible GPUs but the last, where the proxies sit. Output: tries.jsonl in the
-        format of scripts/kk_pilot.py, and summary.json. --timing writes no labels and no accuracy (§23 pilot).
+        ProductOfExpertsLogitsProcessor). The teacher fills all visible GPUs but the last, where the proxies sit.
+        Output: tries.jsonl in the format of scripts/kk_pilot.py, and summary.json. --timing writes no labels and no
+        accuracy (§23 pilot). --resume keeps the stored tries and generates only the missing puzzles.
+  choose  §23's strength rule on the calibration runs: the largest lambda whose correct count is at least the
+          baseline's minus 5 (choice.json).
+  build   The defended training set (all solutions, as U in scripts/kk_build.py).
 
     CUDA_VISIBLE_DEVICES=0 .venv-dg/bin/python scripts/kk_defend.py grad --out outputs/kk_defense/proxy_grad.pt
     CUDA_VISIBLE_DEVICES=0,1,2,3 .venv-dg/bin/python scripts/kk_defend.py gen --method ads --strength 0.1 \
@@ -130,6 +134,21 @@ def cmd_gen(a) -> None:
     rows = [json.loads(line) for line in open(a.puzzles)]
     if a.limit:
         rows = rows[:a.limit]
+    all_rows = rows
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    done = set()
+    if a.resume and (out / "tries.jsonl").exists():
+        kept = []
+        for line in open(out / "tries.jsonl"):
+            try:
+                kept.append(json.loads(line))
+            except json.JSONDecodeError:   # a line cut off by a crash: that puzzle is generated again
+                pass
+        (out / "tries.jsonl").write_text("".join(json.dumps(r) + "\n" for r in kept))
+        done = {r["id"] for r in kept}
+        rows = [r for r in rows if r["id"] not in done]
+        print(f"resume: {len(done)} stored, {len(rows)} to generate", flush=True)
     if a.length_from:   # batch puzzles of similar length together (speed only): the teacher's step-2 try lengths
         lengths = {r["id"]: r["tries"][0]["tokens"] for f in sorted(Path(a.length_from).glob("T*/tries.jsonl"))
                    for r in map(json.loads, open(f))}
@@ -158,11 +177,9 @@ def cmd_gen(a) -> None:
         poe = load_proxy_for_poe(cfg, tok, pdev)
         wrappers = [poe]
         getter = lambda i, m: poe(i, m)[:, -1]  # noqa: E731
-    out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=True)
     t0, steps, gen_tokens = time.time(), 0, 0
     eos = tok.eos_token_id
-    with (out / "tries.jsonl").open("w") as f:
+    with (out / "tries.jsonl").open("a" if done else "w") as f:
         for start in range(0, len(rows), a.batch):
             br = rows[start:start + a.batch]
             enc = tok([tok.apply_chat_template(user_turn(r["quiz"]), tokenize=False, add_generation_prompt=True)
@@ -197,21 +214,65 @@ def cmd_gen(a) -> None:
             f.flush()
             print(f"batch {start // a.batch + 1}: {new.shape[1]} steps, {time.time() - t0:.0f} s", flush=True)
     sec = time.time() - t0
-    summary = {"method": a.method, "strength": a.strength, "puzzles": len(rows), "batch": a.batch, "gpus": n_gpu,
+    summary = {"method": a.method, "strength": a.strength, "puzzles": len(all_rows), "batch": a.batch, "gpus": n_gpu,
+               "resumed_from": len(done), "generated_now": len(rows),   # timing below: this session's puzzles only
                "minutes": round(sec / 60, 1), "steps": steps, "sec_per_step": round(sec / max(steps, 1), 3),
                "generated_tokens": gen_tokens, "tokens_per_sec": round(gen_tokens / sec, 1),
-               "minutes_per_100": round(sec / 60 / len(rows) * 100, 1),
+               "minutes_per_100": round(sec / 60 / max(len(rows), 1) * 100, 1),
                "peak_gib": [round(torch.cuda.max_memory_allocated(i) / 2**30, 1) for i in range(n_gpu)]}
     if not a.timing:
-        tries = [json.loads(line)["tries"][0] for line in open(out / "tries.jsonl")]
+        stored = {}
+        for line in open(out / "tries.jsonl"):
+            r = json.loads(line)
+            stored[r["id"]] = r["tries"][0]
+        assert set(stored) == {r["id"] for r in all_rows}, "stored tries do not match the puzzles"
+        tries = [stored[r["id"]] for r in all_rows]
         by = defaultdict(list)
-        for r, t in zip(rows, tries):
+        for r, t in zip(all_rows, tries):
             by[r["n_people"]].append(t)
         summary.update({"accuracy": round(sum(t["correct"] for t in tries) / len(tries), 4),
                         "finished": round(sum(t["finish_reason"] == "stop" for t in tries) / len(tries), 4),
                         "by_n": {n: round(sum(t["correct"] for t in v) / len(v), 4) for n, v in sorted(by.items())}})
     (out / "summary.json").write_text(json.dumps(summary, indent=1))
     print(json.dumps(summary), flush=True)
+
+
+def wilson(k: int, n: int, z: float = 1.96) -> list[float]:
+    p, d = k / n, 1 + z * z / n
+    c, h = (p + z * z / (2 * n)) / d, z * (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5 / d
+    return [round(c - h, 4), round(c + h, 4)]
+
+
+def cmd_choose(a) -> None:
+    """§23: the largest lambda whose correct count is at least the baseline's minus 5; else the weakest, reported."""
+    def load(d):
+        t = [json.loads(line)["tries"][0] for line in open(Path(d) / "tries.jsonl")]
+        k = sum(x["correct"] for x in t)
+        return {"correct": k, "n": len(t), "accuracy": round(k / len(t), 4), "wilson95": wilson(k, len(t)),
+                "finished": round(sum(x["finish_reason"] == "stop" for x in t) / len(t), 4)}
+    calib = Path(a.calib)
+    base = load(calib / "standard_0")
+    grid = {s: load(calib / f"{a.method}_{s}") for s in a.grid}
+    ok = [s for s in a.grid if grid[s]["correct"] >= base["correct"] - 5]
+    choice = max(ok, key=float) if ok else min(a.grid, key=float)
+    res = {"rule": "largest strength with correct >= baseline correct - 5 (m8 §23)", "baseline": base, "grid": grid,
+           "qualifying": ok, "chosen": choice, "none_qualified": not ok}
+    (calib / "choice.json").write_text(json.dumps(res, indent=1))
+    print(json.dumps(res))
+
+
+def cmd_build(a) -> None:
+    """Every defended solution, as written (wrong or unfinished included), in the shape of U's targets."""
+    pool = [json.loads(line) for line in open(a.pool)]
+    stored = {r["id"]: r["tries"][0] for r in map(json.loads, open(Path(a.gen) / "tries.jsonl"))}
+    assert set(stored) == {r["id"] for r in pool}, "defended solutions missing for some training puzzles"
+    rows = [{"id": r["id"], "n_people": r["n_people"], "quiz": r["quiz"], "names": r["names"],
+             "text": as_target(stored[r["id"]]["text"], "T"), "correct": stored[r["id"]]["correct"]} for r in pool]
+    Path(a.out).write_text("".join(json.dumps(x) + "\n" for x in rows))
+    rep = {"examples": len(rows), "correct": sum(x["correct"] for x in rows),
+           "finished": sum(stored[r["id"]]["finish_reason"] == "stop" for r in pool)}
+    Path(a.out + ".report.json").write_text(json.dumps(rep, indent=1))
+    print(json.dumps(rep))
 
 
 def main() -> None:
@@ -236,9 +297,18 @@ def main() -> None:
     s.add_argument("--length-from", default=None, help="gen folder with the teacher's step-2 tries, to sort by length")
     s.add_argument("--limit", type=int, default=0)
     s.add_argument("--timing", action="store_true", help="§23 timing pilot: no labels, no accuracy")
+    s.add_argument("--resume", action="store_true", help="keep stored tries; generate the missing puzzles only")
     s.add_argument("--seed", type=int, default=123)
+    c = sub.add_parser("choose")
+    c.add_argument("--calib", required=True)
+    c.add_argument("--method", default="ads")
+    c.add_argument("--grid", nargs="+", default=["0.05", "0.1", "0.2", "0.4"])
+    b = sub.add_parser("build")
+    b.add_argument("--pool", required=True)
+    b.add_argument("--gen", required=True)
+    b.add_argument("--out", required=True)
     a = ap.parse_args()
-    (cmd_grad if a.cmd == "grad" else cmd_gen)(a)
+    {"grad": cmd_grad, "gen": cmd_gen, "choose": cmd_choose, "build": cmd_build}[a.cmd](a)
     sys.stdout.flush()
     os._exit(0)
 
