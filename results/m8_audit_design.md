@@ -1591,6 +1591,47 @@ the rewriter and generation items above; the instruction, input, answer handling
     - For the full run this is reported by reading a random sample of 50 rewrites (seed 123) with a wrong or missing
       teacher answer. It is descriptive and changes no verdict.
 
+**Result (2026-11-17).** Rewriting 11:55 – 12:47 (two copies, GPUs 2–3 and 6–7); training and test 12:47 – 15:48.
+Files: `outputs/kk_step2/rewrite/part{1,2}.jsonl` (+ `.summary.json`), `outputs/kk_step2/train_sets/D_rewrite.jsonl`,
+`outputs/kk_step2/students/D_rewrite_s<seed>/test_eot/results.jsonl`, scored on first answers.
+- **The rewrites:**
+  - All 2,000 rewritten. The model's reasoning ended in every case (no retries). 55 rewrites (2.8%) hit the
+    16,384-token cap and are kept as they are.
+  - Mean rewrite 1,390–1,466 teacher tokens, 0.46 of the original. Reasoning 586–676 tokens.
+  - 270 have no teacher CONCLUSION to append: the 288 without a readable answer, minus 18 with a numbered
+    CONCLUSION that does not parse, which is appended verbatim.
+
+| Seed | D_rewrite (%) | U (%) | U − D_rewrite | F_D (%) |
+| --- | --- | --- | --- | --- |
+| 123 | 4.0 | 48.2 | 44.2 | 24.7 |
+| 124 | 10.2 | 50.6 | 40.4 | 21.8 |
+| 125 | 4.9 | 47.7 | 42.8 | 20.7 |
+| Mean | **6.4** | 48.8 | **+42.5** (37.7 to 47.2) | 22.4 |
+
+- **Verdict: D_rewrite is below F_D,** so rewriting removes all that any answer-preserving defense can remove here.
+  - Protection = U − max(D_rewrite, F_D) = 48.8 − 22.4 = 26.4 points. **Share removed: 100%.**
+  - F_D − D_rewrite = +16.0 (4.7 to 27.3): the defended solutions are worse than none. The attacker's best response
+    is to ignore them and use the answers with its own reasoner.
+  - Reading of the rule: rewriting reaches the floor. Nothing more can be protected against this attacker.
+- **Robustness of the verdict to unfinished answers:**
+  - The defended students often write no CONCLUSION in the 8,192-token budget: 484, 994 and 739 of 1,000.
+  - Among outputs that do conclude, they are right 8.3, 10.3 and 6.6% of the time, against 30–36% for F_D and 63–69%
+    for U. So D_rewrite would stay below F_D even if every output concluded.
+- **Departure from the teacher** (50 rewrites, seed 123, from the 565 puzzles with a wrong or missing teacher answer;
+  read by hand):
+  - **Teacher wrong (25 of the sample):** 23 restate the teacher's wrong answer; 1 states the true one; 1 is capped
+    before any answer.
+  - **No teacher answer (25):** 16 state the true answer; 4 a wrong one; 2 give two models (one of them right in 1
+    case); 3 none (2 capped, 1 "unsatisfiable").
+  - Extrapolated: gpt-oss adds a correct solution to roughly 180 puzzles where the teacher's text has none. The
+    defended set therefore carries some knowledge the teacher's does not, and still trains a weaker student. This
+    makes the verdict conservative.
+- **Cost:** a second, 120B model's inference per released solution: 2,000 rewrites took 50 minutes on 2 × 2 L40S.
+  Final answers are unchanged by construction.
+- **Scope:** this attacker trains on the defended solutions as released. An adaptive attacker that first maps the
+  formal rewrites back to plain reasoning with its own models is not measured; if that exceeded F_D, the protection
+  would shrink. The authors decide whether to run it.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
