@@ -1632,6 +1632,119 @@ Files: `outputs/kk_step2/rewrite/part{1,2}.jsonl` (+ `.summary.json`), `outputs/
   formal rewrites back to plain reasoning with its own models is not measured; if that exceeded F_D, the protection
   would shrink. The authors decide whether to run it.
 
+## 22. Phase 2: the floor under corrupted answers (fixed 2026-11-17, before any result; go-ahead from the user)
+
+**Why.** A provider can lower the answer floor only by making some released answers wrong, which users pay for. This
+measures how far the floor falls per point of that cost. The attacker trusts the answers it is given: the testbed
+stands in for domains where no program can check an answer (§17, known limitation).
+
+**Corruption.**
+- The pool is the 1,712 step-2 training puzzles with a readable teacher answer. They are put in a random order
+  (seed 20261117).
+- Level c ∈ {12, 30, 50}% takes the first round(c × 1,712) puzzles of that order (205, 514, 856), so the levels are
+  nested.
+- Each chosen puzzle's released answer becomes an assignment drawn uniformly from those different from the teacher's
+  answer (same seed; the same wrong answer at every level). The teacher's own wrong answers (277) stay as they are
+  unless chosen.
+- Level 0 is F_D itself (§18, 22.4%).
+
+**The floor student F_D^c**, built exactly as F_D with the released answers:
+- D's first try (of its 4 step-2 tries) whose answer equals the released answer.
+- Otherwise a hint round of 4 D tries with the released answer as the hint, the hint removed from the training text.
+  - Puzzles whose answer is unchanged reuse §18's hint round.
+  - Corrupted puzzles get a new hint round, same settings (`gen/D_chint*`).
+- Puzzles still unmatched, and the 288 without a teacher answer, are reported and not trained on.
+- Training and scoring: §18's recipe, seeds 123–125, 1,000 test puzzles, first answers.
+
+**Reported.**
+- F_D^c per seed and its mean.
+- The drop F_D − F_D^c with its 95% interval.
+- The cost to users: the share of the 2,000 released answers that are wrong or missing at each level.
+- How many corrupted answers D reaches in its own tries and in the hint round. A corrupted answer D never reaches
+  drops out of training, so the attacker's own model filters part of the corruption.
+
+**What the outcomes mean.**
+- **A drop exists at level c** if its mean is above the margin (12.1) and its interval excludes 0.
+- The curve (cost to users, F_D^c) shows the price of lowering the floor. Lowering it also lowers the most any
+  answer-preserving defense could protect against an attacker that does not check answers.
+
+**Check before any GPU run:** the corruption and the build are run offline on the stored tries (counts only).
+
+**Offline check and build (2026-11-17 21:54 to 2026-11-18 00:20).** `scripts/kk_corrupt.py`, `scripts/54_kk_corrupt.sh`.
+- Levels: 205, 514 and 856 of the 1,712 readable answers.
+- D reaches only 1 of the 856 corrupted answers (the top level) in its 4 step-2 tries, so 855 puzzles went to the new
+  hint round (D, 4 tries, two single-GPU copies on GPUs 6 and 7, 2 h 26 min).
+- Build (`train_sets/build_report_corrupt.json`):
+
+| Level | Corrupted | Corrupted answers kept (first round + hint round) | Training examples | Released answers wrong or missing (of 2,000) |
+| --- | --- | --- | --- | --- |
+| 0 (F_D) | 0 | – | – | 28.3% (277 wrong + 288 missing) |
+| 12% | 205 | 16 (0 + 16) | 1,162 | 36.6% |
+| 30% | 514 | 39 (1 + 38) | 942 | 50.0% |
+| 50% | 856 | 64 (1 + 63) | 706 | 64.5% |
+
+- D reaches 7.5–7.8% of the corrupted answers at every level. The other 92% leave the training set rather than enter it
+  with a wrong answer: the attacker's own model filters most of the corruption, so F_D^c mostly measures a smaller
+  training set with a few wrong answers.
+- Students: 9 jobs on GPUs 4, 6 and 7 from 00:20; F_D_c50_s123 trained in 89 min.
+
+## 23. Phase 1: ADS and PoE on the puzzle testbed (fixed 2026-11-17, before any result; go-ahead from the user)
+
+**Defenses**, as implemented in the Distillation Game code (`clean_sweep/generation/methods.py`, `core.py`).
+- **ADS:** `AntidistillationLogitsProcessor`, identity penalty, eps 0.01. The proxy student is Qwen2.5-3B (base), as
+  in their configs.
+  - The proxy gradient is their `compute_student_holdout_grad` on teacher solutions of held-out puzzles, in the
+    proxy's chat format, completion only.
+  - The held-out puzzles are the teacher's first tries on the pilot's N = 7 and 8 puzzles (64 of each; disjoint
+    from step-2 training and test).
+  - Maximum length 8,704, as the students.
+- **PoE:** `ProductOfExpertsLogitsProcessor`, the same proxy: (1 − γ) × teacher logits + γ × proxy logits.
+- **Teacher generation:** Hugging Face `generate` with their logits processors (their code path; vLLM cannot run
+  them). §18's prompt, temperature 0.6, top-p 0.95, up to 8,192 new tokens. The teacher is split across the GPUs
+  of one group.
+
+**Timing pilot first** (16 calibration puzzles; strength 0, ADS λ = 0.1, PoE γ = 0.4). Reported: tokens per second,
+minutes per 100 puzzles, memory. No accuracy is read. If the full plan below would take more than about 3 days of
+one GPU group, the authors decide on a smaller one.
+
+**Strength (the rule fixed in §21):** the strongest setting that lowers the teacher's accuracy by at most 5 points.
+- **Calibration set:** 100 fresh puzzles (50 at N = 7, 50 at N = 8; `scripts/kk_make.py`, seed 20261413+N), one try
+  each, strict checker.
+- **Baseline:** strength 0 through the same Hugging Face pipeline.
+- **Grids:** ADS λ ∈ {0.05, 0.1, 0.2, 0.4}; PoE γ ∈ {0.2, 0.4, 0.6} (0.6 is the Distillation Game's GSM8K setting).
+- **Choice:** the largest value whose accuracy is at least the baseline's minus 5 points. If none qualifies, the
+  defense is reported at its weakest grid value with its cost.
+- With 100 puzzles one point of accuracy is one puzzle; the intervals are reported.
+
+**Defended students.** At the chosen strength the teacher writes one solution per training puzzle (2,000). D_ADS and
+D_PoE are trained with §18's recipe, seeds 123–125, first answers. Quantities and outcomes as in §21:
+- protection = U − max(D_φ, F_D);
+- share removed = protection / (U − F_D);
+- cost: the teacher's calibration accuracy at that strength, and its finished rate.
+
+**Proxy gradient (2026-11-17 22:01).** `scripts/kk_defend.py grad`: 128 held-out solutions, gradient norm 2.49,
+2.6 min (`outputs/kk_defense/proxy_grad.pt`). The first try ran out of memory: the proxy's full-vocabulary logits
+for a batch of 2 × 8,704 tokens in fp32 take 9.6 GiB. The loss is now computed with the vocabulary projection in
+checkpointed chunks of 1,024 positions. Checked against the model's own loss on one batch: loss 0.6557208 both ways,
+gradient relative difference 2.2e-5. The method is unchanged.
+
+**Timing pilot result (2026-11-18 01:52).** GPUs 0–2 for the teacher, GPU 3 for the proxies; 16 puzzles, one batch
+of 16; no accuracy read (`outputs/kk_defense/timing/*/summary.json`).
+
+| Setting | Minutes | Sec per step | Tokens per sec | Minutes per 100 puzzles | Solutions at the 8,192 cap | Peak memory, GiB (GPUs 0–3) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Standard | 42.1 | 0.308 | 20.1 | 263 | 2 of 16 | 30.8 / 33.6 / 32.2 / 0 |
+| ADS λ 0.1 | 58.8 | 0.431 | 15.3 | 367 | 4 of 16 | 30.8 / 33.6 / 32.2 / 21.0 |
+| PoE γ 0.4 | 51.3 | 0.376 | 32.0 | 320 | 11 of 16 | 30.8 / 33.6 / 32.2 / 10.6 |
+
+- Every batch ran the full 8,192 steps, because one capped solution holds the whole batch. With the teacher's 12.5%
+  cap rate in step 2, almost every batch of 16 has one. Sorting puzzles by the length of an earlier try saves about
+  7%: on the pilot's 200 puzzles at N = 7–8, try 1 and try 2 lengths correlate at 0.42, and sorting by try 1 costs
+  0.93 of the all-capped time for try 2.
+- **Full plan at this speed:** calibration (baseline 4.4 h, ADS 4 × 6.1 h, PoE 3 × 5.3 h) 45 h; 2,000 solutions
+  with ADS 122 h and with PoE 107 h. Total 274 h, about 11.4 days of one GPU group, plus 6 students.
+- **Verdict:** over the 3-day budget. The authors decide on a smaller plan.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
