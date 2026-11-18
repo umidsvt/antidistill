@@ -1688,6 +1688,26 @@ stands in for domains where no program can check an answer (§17, known limitati
   training set with a few wrong answers.
 - Students: 9 jobs on GPUs 4, 6 and 7 from 00:20; F_D_c50_s123 trained in 89 min.
 
+**Result (2026-11-18 11:44; first answers; `outputs/kk_step2/corrupt/result.json`).** The scorer reproduces §18's
+first-answer numbers for U and F_D exactly. Drops are seed-paired, 95% interval with t(2 df) = 4.303, as in §18.
+
+| Level | Released answers wrong or missing | Training examples (wrong among them) | F_D^c, seeds 123 / 124 / 125 | Mean | Drop F_D − F_D^c | 95% CI | Drop exists? |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 (F_D) | 28.3% | 1,304 (0 corrupted) | 24.7 / 21.8 / 20.7 | 22.4 | – | – | – |
+| 12% | 36.6% | 1,162 (16) | 18.2 / 21.1 / 23.0 | 20.8 | +1.6 | −9.5 to 12.7 | no |
+| 30% | 50.0% | 942 (39) | 17.0 / 17.6 / 21.4 | 18.7 | +3.7 | −6.7 to 14.2 | no |
+| 50% | 64.5% | 706 (64) | 15.4 / 14.3 / 12.3 | 14.0 | +8.4 | 6.2 to 10.6 | no (below the 12.1 margin) |
+
+- **Verdict: no drop at any level.**
+  - At 12% and 30% the interval includes 0.
+  - At 50% the interval excludes 0, but the mean, 8.4, is below the margin.
+- **The price of lowering the floor is high.** Making half of the readable answers wrong raises the wrong-or-missing
+  share of released answers from 28.3% to 64.5%, and lowers the floor by 8.4 points (22.4 to 14.0). The most an
+  answer-preserving defense could then protect against this attacker grows from 26.4 to 34.8 points (U = 48.8).
+- **Why so little.** D reaches only 64 of the 856 corrupted answers. The rest drop out of training, so F_D^c50 trains
+  on 706 examples instead of 1,304, with 64 wrong. The fall measures mostly a smaller training set. An attacker that
+  checks answers against its own tries throws most corruption away for free.
+
 ## 23. Phase 1: ADS and PoE on the puzzle testbed (fixed 2026-11-17, before any result; go-ahead from the user)
 
 **Defenses**, as implemented in the Distillation Game code (`clean_sweep/generation/methods.py`, `core.py`).
