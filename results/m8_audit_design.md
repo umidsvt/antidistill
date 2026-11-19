@@ -1795,6 +1795,36 @@ of 16; no accuracy read (`outputs/kk_defense/timing/*/summary.json`).
   teacher's calibration accuracy at the chosen λ, its finished rate, and its accuracy on the 2,000 training puzzles.
 - **GPUs:** group A (0–2 teacher, 3 proxies). Each run waits until all four GPUs are free of other processes and
   have 42 GB free.
+  - Group A stayed busy (other jobs on GPUs 0–2) from 07:28. When GPU 5 came free, the chain moved to group B
+    before generating anything: GPUs 4–6 for the teacher, 7 for the proxies. It started at 13:50 on 2026-11-18. The
+    group-A wait is in `logs/kk_ads_groupA_waited.log`.
+
+**Calibration result (2026-11-18 13:50 to 2026-11-19; `outputs/kk_defense/calib/*/summary.json`, `tries.jsonl`).**
+Batch 25 fit: peak 40.7 GiB on the busiest teacher GPU and 26.4 GiB for the proxies.
+
+| Setting | Correct of 100 (strict checker, the rule) | Wilson 95% | Finished | Unreadable (strict) | Sec per step | Minutes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Baseline (λ 0) | 75 | 65.7 to 82.5 | 85 | 15 | 0.438 | 239 |
+| ADS λ 0.05 | 53 | 43.3 to 62.5 | 86 | 27 | 0.568 | 310 |
+| ADS λ 0.1 | 1 | 0.2 to 5.4 | 85 | 97 | 0.560 | 306 |
+| ADS λ 0.2 | 0 | 0.0 to 3.7 | 76 | 100 | 0.560 | 306 |
+| ADS λ 0.4 | running | | | | | |
+
+- **Under the rule, no λ qualifies.** Qualifying needs at least 70 correct, and the weakest value, 0.05, has 53.
+- **ADS changes the answer format.** Where the teacher writes "Olivia is a knight", ADS writes "Olivia - Knight" or
+  "Knight - Logan". The strict checker (§17) cannot read those lines.
+- **Diagnostic, not the rule:** a lenient reader that accepts each numbered line naming one person and one of
+  knight/knave, in any order. It reads 75 / 60 / 38 / 2 correct for λ 0, 0.05, 0.1, 0.2. So λ 0.05 also fails under
+  lenient reading (−15). Formatting explains part of the strict drop (λ 0.1: 1 strict, 38 lenient), and the rest is
+  wrong answers.
+- **Speed at batch 25:** 0.0175 s per puzzle-step for the baseline (0.0193 at batch 16) and 0.0224 for ADS (0.0269).
+  That is a 1.1–1.2× gain, not the 1.4× estimated. 2,000 ADS solutions would take about 95 h.
+- **Stopped before the full run (2026-11-19 10:58).** The chain would have gone on to the pre-written fallback
+  (2,000 solutions at λ 0.05). It was stopped by hand under CLAUDE.md rule 1, and the λ 0.4 run was left to finish.
+  - λ 0.05 costs 22 points (strict), which no provider would accept.
+  - Its training text would teach the student an answer format the strict scorer cannot read. That would lower
+    D_ADS for a reason that has nothing to do with what the solutions teach.
+  - The authors decide how to continue.
 - **Estimated time:** calibration about 19 h; 2,000 solutions about 76 h; 3 students about 5 h in parallel. About
   4 days in all.
 
