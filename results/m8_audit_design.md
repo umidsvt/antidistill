@@ -1833,7 +1833,10 @@ reported from the calibration alone: on this testbed no strength in the grid kee
 the weakest, λ 0.05, costs 22 points. No defended solutions or D_ADS students are made. The λ 0.4 run is left to
 finish so the grid is complete; its row is added when it ends.
 
-## 24. Phase 0 of the answers-only method: the setup with an instruction-tuned student (draft 2026-11-19, before any result; not yet approved to run)
+## 24. Phase 0 of the answers-only method: the setup with an instruction-tuned student (2026-11-19; teacher and gap threshold confirmed by the user; not yet approved to run)
+
+From this section on, results may be interpreted after they are seen and the approach changed after analyzing them
+(user, 2026-11-19; CLAUDE.md rule 1). Each entry records what is run, what came out and why the next step changed.
 
 **Why.** From 2026-11-18 the main aim is an answers-only fine-tuning method that gets as close as possible to the
 student fine-tuned on the teacher's solutions (`results/plan_answer_only.md`, `results/lit_answer_only.md`). The

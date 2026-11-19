@@ -31,9 +31,11 @@ it.
 4. `results/REPORT.md`: the LIMO phase (defenses, attacks), when you need those numbers.
 
 **Rules for this project (agreed with the authors).**
-1. **The rule comes before the result.** Before an experiment runs, its m8 entry says what is run and what each outcome
-   means. Record every deviation. Do not apply a pre-written fallback when the cause is a bug or a failed recipe;
-   ask the authors (m8 §9.3 has an example).
+1. **m8 records every experiment.** Before an experiment runs, its m8 entry says what is run. For the answers-only
+   method work (m8 §24 on, agreed with the user 2026-11-19), results may be interpreted after they are seen and the
+   approach improved after analyzing them: record what was tried, what came out and why the approach changed. The
+   earlier audit verdicts (§1–23) were pre-registered and stay as recorded. Record every deviation. Do not apply a
+   pre-written fallback when the cause is a bug or a failed recipe; ask the authors (m8 §9.3 has an example).
 2. **Start nothing without an explicit go-ahead.** No job, queue or background process starts until the authors
    say yes to it; a rule in m8 that names the next run is not a go-ahead. Ask before changing any fixed rule.
 3. **Never drop problems from a training pool.** Every pool keeps all its problems (LIMO: all 800); items a method
