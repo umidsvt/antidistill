@@ -1810,13 +1810,13 @@ Batch 25 fit: peak 40.7 GiB on the busiest teacher GPU and 26.4 GiB for the prox
 | ADS λ 0.05 | 53 | 43.3 to 62.5 | 86 | 27 | 0.568 | 310 |
 | ADS λ 0.1 | 1 | 0.2 to 5.4 | 85 | 97 | 0.560 | 306 |
 | ADS λ 0.2 | 0 | 0.0 to 3.7 | 76 | 100 | 0.560 | 306 |
-| ADS λ 0.4 | running | | | | | |
+| ADS λ 0.4 (stopped at 50 puzzles) | 0 of 50 | 0.0 to 7.1 | 25 of 50 | 50 of 50 | – | – |
 
 - **Under the rule, no λ qualifies.** Qualifying needs at least 70 correct, and the weakest value, 0.05, has 53.
 - **ADS changes the answer format.** Where the teacher writes "Olivia is a knight", ADS writes "Olivia - Knight" or
   "Knight - Logan". The strict checker (§17) cannot read those lines.
 - **Diagnostic, not the rule:** a lenient reader that accepts each numbered line naming one person and one of
-  knight/knave, in any order. It reads 75 / 60 / 38 / 2 correct for λ 0, 0.05, 0.1, 0.2. So λ 0.05 also fails under
+  knight/knave, in any order. It reads 75 / 60 / 38 / 2 correct for λ 0, 0.05, 0.1, 0.2, and 0 of 50 at 0.4. So λ 0.05 also fails under
   lenient reading (−15). Formatting explains part of the strict drop (λ 0.1: 1 strict, 38 lenient), and the rest is
   wrong answers.
 - **Speed at batch 25:** 0.0175 s per puzzle-step for the baseline (0.0193 at batch 16) and 0.0224 for ADS (0.0269).
@@ -1912,6 +1912,8 @@ few steps; evaluation on 50 problems). It only checks that the pipeline runs, an
   - U_inst training on 48 of the field teacher's solutions, then scoring the merged student on 50 problems: 72%. The
     student writes in the teacher's format, ends with the boxed answer and stops (92% finished).
   - The 32B smoke test (16 MATH problems) runs first in the launcher.
+- **Scorer check on GSM8K passes:** I0 at 1,024 tokens, seed 123, 82.13% (993 of 1,209), the same as the setup's HF
+  loop (82.13%).
 - **ADS λ 0.4 stopped after 2 of its 4 batches** (50 puzzles) to free GPUs 4–7 (§23 closed).
 
 ## Sources
