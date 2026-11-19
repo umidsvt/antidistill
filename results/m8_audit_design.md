@@ -1930,6 +1930,17 @@ few steps; evaluation on 50 problems). It only checks that the pipeline runs, an
   - On the field's setup the teacher's solutions make the instruct student worse on MATH.
 - **S2 teacher on MATH:** running since 12:50; 10,173 of 12,221 items by 18:10 (about 1,120 tokens/s, slower than
   estimated). Expected about 19:50.
+
+**Addendum (2026-11-19 evening, the user's request): Phase 0 on the puzzle testbed** (`scripts/57_kk_instruct.sh`).
+- **Runs, seeds 123–125, the 1,000 step-2 test puzzles:** the instruction-tuned student untrained (I0), and trained
+  on the teacher's 2,000 step-2 solutions (U_inst, `train_sets/U.jsonl`, the §18 recipe).
+  - `kk_sft.py` and `kk_eval.py` take `--student`; the base-student default is unchanged.
+- **Scoring:** as §18, reported on first answers and on the last answer. The instruct student can end its turn, so
+  the last answer is meaningful here.
+- **Compared with:** the base student (U 48.8%, F_D 22.4%, F_A 1.7%, untrained 0.3%).
+- **For the examples file only:** the teacher on 6 test puzzles (3 at N = 7, 3 at N = 8), one try each.
+- **GPUs:** only those Phase 0's queue has released, plus GPUs 1–3 when free of other processes. Per-GPU locks keep
+  the two launchers apart.
 - **ADS λ 0.4 stopped after 2 of its 4 batches** (50 puzzles) to free GPUs 4–7 (§23 closed).
 
 ## Sources

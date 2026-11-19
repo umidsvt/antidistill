@@ -35,6 +35,7 @@ def main() -> int:
     ap.add_argument("--top-p", type=float, default=0.95)
     ap.add_argument("--gpu-mem", type=float, default=0.85)
     ap.add_argument("--limit", type=int, default=0, help="first N puzzles (smoke tests only)")
+    ap.add_argument("--student", default=STUDENT, help="m8 §24: unsloth/Llama-3.2-3B-Instruct for the instruct student")
     a = ap.parse_args()
     from vllm import LLM, SamplingParams
     from vllm.lora.request import LoRARequest
@@ -43,7 +44,7 @@ def main() -> int:
         rows = rows[:a.limit]
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    llm = LLM(model=STUDENT, tokenizer=STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=a.max_tokens + 1024,
+    llm = LLM(model=a.student, tokenizer=STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=a.max_tokens + 1024,
               gpu_memory_utilization=a.gpu_mem, seed=a.seed, enable_lora=bool(a.adapter), max_lora_rank=128)
     tok = llm.get_tokenizer()
     prompts = [tok.apply_chat_template([user_turn(r["quiz"])], tokenize=False, add_generation_prompt=True,
@@ -68,7 +69,7 @@ def main() -> int:
             f.write(json.dumps({"id": r["id"], "n_people": r["n_people"], "text": c.text, "tokens": len(c.token_ids),
                                 "finish_reason": c.finish_reason, "labels": labels, "correct": ok}) + "\n")
     tot = [sum(v[i] for v in per_n.values()) for i in range(4)]
-    summary = {"adapter": a.adapter or None, "seed": a.seed, "puzzles": tot[0], "solve_rate": round(tot[1] / tot[0], 4),
+    summary = {"adapter": a.adapter or None, "student": a.student, "seed": a.seed, "puzzles": tot[0], "solve_rate": round(tot[1] / tot[0], 4),
                "finished": round(tot[2] / tot[0], 4), "mean_tokens": round(tot[3] / tot[0], 1),
                "minutes": round((time.time() - t0) / 60, 1),
                "by_n": {str(n): {"puzzles": v[0], "solve_rate": round(v[1] / v[0], 4), "finished": round(v[2] / v[0], 4),

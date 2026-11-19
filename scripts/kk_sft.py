@@ -40,6 +40,7 @@ def main() -> int:
     ap.add_argument("--grad-accum", type=int, default=24)
     ap.add_argument("--max-steps", type=int, default=-1, help="smoke tests only")
     ap.add_argument("--limit", type=int, default=0, help="first N examples (smoke tests only)")
+    ap.add_argument("--student", default=STUDENT, help="m8 §24: unsloth/Llama-3.2-3B-Instruct for the instruct student")
     a = ap.parse_args()
     import torch
     from peft import LoraConfig, get_peft_model
@@ -80,7 +81,7 @@ def main() -> int:
             ids[i, :k], lab[i, :k], att[i, :k] = torch.tensor(b["input_ids"]), torch.tensor(b["labels"]), 1
         return {"input_ids": ids, "labels": lab, "attention_mask": att}
 
-    model = AutoModelForCausalLM.from_pretrained(STUDENT, torch_dtype=torch.bfloat16,
+    model = AutoModelForCausalLM.from_pretrained(a.student, torch_dtype=torch.bfloat16,
                                                  attn_implementation="flash_attention_2").to("cuda")
     model.config.pad_token_id = tok.pad_token_id
     model = get_peft_model(model, LoraConfig(r=128, lora_alpha=128, lora_dropout=0.0, bias="none", task_type="CAUSAL_LM",
@@ -98,7 +99,7 @@ def main() -> int:
     trainer = Trainer(model=model, args=args, train_dataset=DS(), data_collator=collate)
     trainer.train()
     model.save_pretrained(str(out / "adapter"))
-    meta = {"train_set": a.train_set, "seed": a.seed, "examples": len(examples), "truncated": truncated,
+    meta = {"train_set": a.train_set, "seed": a.seed, "student": a.student, "examples": len(examples), "truncated": truncated,
             "max_length": a.max_length, "mean_tokens": round(sum(len(e["input_ids"]) for e in examples) / len(examples), 1),
             "steps": trainer.state.global_step, "minutes": round((time.time() - t0) / 60, 1),
             "loss_log": [x for x in trainer.state.log_history if "loss" in x]}
