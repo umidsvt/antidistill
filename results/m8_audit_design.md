@@ -1914,6 +1914,13 @@ few steps; evaluation on 50 problems). It only checks that the pipeline runs, an
   - The 32B smoke test (16 MATH problems) runs first in the launcher.
 - **Scorer check on GSM8K passes:** I0 at 1,024 tokens, seed 123, 82.13% (993 of 1,209), the same as the setup's HF
   loop (82.13%).
+- **Scorer check on MATH passes:** I0 at 1,024 tokens, seed 123, 49.04% against 48.2% in the setup's HF loop.
+- **S2 teacher on GSM8K (2026-11-19 12:05–12:50, GPUs 4–7):**
+  - 96.5% on the test set (field teacher 87.2%), 94.5% on the 7,252 distinct training problems.
+  - Per-seed training files: 94.8 / 94.5 / 94.5%.
+  - Every solution finishes; median 423 tokens (90th percentile 606).
+- **I0 on GSM8K:** 82.13 / 81.89 / 82.71% at 1,024 tokens and 82.13 / 81.89 / 82.80% at 8,192 (median 180 tokens).
+  The teacher is 14 points above the untrained student, so U_inst − I0 can be at most about that.
 - **ADS λ 0.4 stopped after 2 of its 4 batches** (50 puzzles) to free GPUs 4–7 (§23 closed).
 
 ## Sources
