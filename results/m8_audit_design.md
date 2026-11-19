@@ -1798,6 +1798,8 @@ of 16; no accuracy read (`outputs/kk_defense/timing/*/summary.json`).
   - Group A stayed busy (other jobs on GPUs 0–2) from 07:28. When GPU 5 came free, the chain moved to group B
     before generating anything: GPUs 4–6 for the teacher, 7 for the proxies. It started at 13:50 on 2026-11-18. The
     group-A wait is in `logs/kk_ads_groupA_waited.log`.
+- **Estimated time:** calibration about 19 h; 2,000 solutions about 76 h; 3 students about 5 h in parallel. About
+  4 days in all.
 
 **Calibration result (2026-11-18 13:50 to 2026-11-19; `outputs/kk_defense/calib/*/summary.json`, `tries.jsonl`).**
 Batch 25 fit: peak 40.7 GiB on the busiest teacher GPU and 26.4 GiB for the proxies.
@@ -1825,8 +1827,65 @@ Batch 25 fit: peak 40.7 GiB on the busiest teacher GPU and 26.4 GiB for the prox
   - Its training text would teach the student an answer format the strict scorer cannot read. That would lower
     D_ADS for a reason that has nothing to do with what the solutions teach.
   - The authors decide how to continue.
-- **Estimated time:** calibration about 19 h; 2,000 solutions about 76 h; 3 students about 5 h in parallel. About
-  4 days in all.
+
+**ADS closed (authors' decision, 2026-11-19).** The paper's main aim moved to answers-only fine-tuning (§24). ADS is
+reported from the calibration alone: on this testbed no strength in the grid keeps the teacher within 5 points, and
+the weakest, λ 0.05, costs 22 points. No defended solutions or D_ADS students are made. The λ 0.4 run is left to
+finish so the grid is complete; its row is added when it ends.
+
+## 24. Phase 0 of the answers-only method: the setup with an instruction-tuned student (draft 2026-11-19, before any result; not yet approved to run)
+
+**Why.** From 2026-11-18 the main aim is an answers-only fine-tuning method that gets as close as possible to the
+student fine-tuned on the teacher's solutions (`results/plan_answer_only.md`, `results/lit_answer_only.md`). The
+student becomes an instruction-tuned model.
+- With the field's teacher, Llama-3.2-3B-Instruct already solves 81.7% of GSM8K-Platinum against the teacher's
+  87.2%, and 48.0% of MATH against 63.1% (§12). So little is left to close.
+- Phase 0 measures that gap with the field's teacher, and with a bigger teacher, before any method work. The
+  field's case goes to the appendix.
+
+**Students.**
+- **Llama-3.2-3B-Instruct** (`unsloth/Llama-3.2-3B-Instruct`), the main student, with its own chat template.
+- Qwen2.5-3B-Instruct, the second student, is measured in Phase 3, not here.
+
+**Setups** (the same training problems and seeds 123–125 as §12; test sets GSM8K-Platinum, 1,209 problems, and MATH,
+5,000):
+- **S1, the field's setup (appendix case).** Teacher R1-Distill-Qwen-7B with 1,024 new tokens and answer forcing.
+  The stored teacher solutions of §12 are reused; no new teacher run.
+- **S2, a bigger teacher (main candidate).** DeepSeek-R1-Distill-Qwen-32B, the same family as the field's teacher.
+  - Generation: temperature 0.6, top-p 0.95, up to 8,192 new tokens, the setup's answer forcing, one solution per
+    training problem.
+  - It is also scored on both test sets with the same settings.
+  - The 1,024-token limit is what makes the field's 7B teacher weaker than an ordinary instruct model (§9.4); S2
+    lifts both the model size and the budget.
+
+**What is measured, per setup, dataset and seed.**
+- **I0:** the untrained instruct student.
+- **U_inst:** the instruct student fine-tuned on that setup's teacher solutions, with the setup's recipe (LoRA r 128,
+  3 epochs, lr 5e-4).
+  - For S2 the maximum training length is raised from 2,048 to 8,704 tokens (a deviation, recorded), and truncation
+    is reported.
+- **Evaluation:** the setup's evaluation (temperature 0.6, answer forcing), with 1,024 new tokens for S1 and 8,192
+  for S2. I0 is scored under both budgets, so each comparison uses the same budget.
+
+**Rule.**
+- **The gap** is G = U_inst − I0: seed-paired, 3-seed mean, 95% interval with t(2 df).
+- **A (setup, dataset) is a development setting** if G ≥ 10 points and its interval excludes 0.
+  - Why 10: methods must differ by a few points and still be readable as shares of the gap. Seed noise here is about
+    1–2 points.
+- **If S2-MATH passes and S2-GSM8K does not:** MATH is the main dataset and GSM8K is reported as a narrow-gap case.
+- **If no S2 setting passes:** stop and report to the authors.
+- **S1 is reported whatever its G** (the appendix case: the literature's setup leaves a narrow gap).
+- **Also reported:** the teacher's test accuracy, the share of training problems where the teacher's answer is
+  wrong, and the train–test gap of I0 (contamination).
+
+**Cost (estimate).**
+- S2 teacher solutions and teacher test scores: about 12 h on 2 GPUs.
+- U_inst: S1 about 3 h per run; S2 about 3 h (GSM8K) and 9 h (MATH) per run.
+- Evaluations: 1–3 h each.
+- Total about 85 GPU-hours, 1.5–2 days on 4–6 GPUs.
+
+**Check before the full runs:** a smoke test of each new piece (the S2 teacher on 20 problems; U_inst training for a
+few steps; evaluation on 50 problems). It only checks that the pipeline runs, and has no threshold.
 
 ## Sources
 
