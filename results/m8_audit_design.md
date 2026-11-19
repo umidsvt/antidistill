@@ -1890,6 +1890,30 @@ student becomes an instruction-tuned model.
 **Check before the full runs:** a smoke test of each new piece (the S2 teacher on 20 problems; U_inst training for a
 few steps; evaluation on 50 problems). It only checks that the pipeline runs, and has no threshold.
 
+**Go-ahead 2026-11-19 11:40. Implementation** (`scripts/56_phase0.sh`, `scripts/dg_teacher_vllm.py`; outputs
+`outputs/phase0/`):
+- **One S2 solution per distinct problem.** The setup's example ids are positions after a per-seed shuffle, so
+  problems are matched by text. The three seeds' training splits hold 7,252 distinct GSM8K and 7,221 distinct MATH
+  problems. The 32B teacher writes one solution for each (sampling seed 123), and each seed's file is cut from them in
+  that seed's order. The test split is the same set for every seed and is generated once.
+  - The field's runs regenerated the teacher per seed. One release per problem is the realistic case for an attacker,
+    and it costs a third less.
+- **S2 teacher:** one vLLM instance with tensor parallelism over GPUs 4–7. On a GPU pair the 32B weights leave about
+  8 GB per GPU for the cache.
+- **S2 training cut-off:** 9,216 tokens with micro-batch 1 × accumulation 24, the setting §10.1 used for 8,192-token
+  solutions (not 8,704 as first written).
+- **Scoring:** `scripts/dg_score_vllm.py` (the §10.1 scorer, checked against the setup's HF loop on MATH), now with
+  the setup's GSM8K prompt for GSM8K configs. Scorer check on GSM8K: I0 at 1,024 tokens, seed 123, must land within
+  1.5 points of Llama-3.2-3B-Instruct's own test score in the setup's HF loop (82.13%, the Solo B run's writer score;
+  MATH 48.2%).
+- **Smoke tests (2026-11-19, GPU 0):**
+  - The scorer on 50 GSM8K problems: I0 80% (the instruct model writes "ANSWER: $18"; answer forcing and the checker
+    read it).
+  - U_inst training on 48 of the field teacher's solutions, then scoring the merged student on 50 problems: 72%. The
+    student writes in the teacher's format, ends with the boxed answer and stops (92% finished).
+  - The 32B smoke test (16 MATH problems) runs first in the launcher.
+- **ADS λ 0.4 stopped after 2 of its 4 batches** (50 puzzles) to free GPUs 4–7 (§23 closed).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

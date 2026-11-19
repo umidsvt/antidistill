@@ -28,6 +28,8 @@ def main() -> int:
                     help="solution file(s) in the setup's format (prompt, trace, af_final_answer_only)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--init", default="", help="merged model to start from instead of the config's student")
+    ap.add_argument("--student", default="", help="student model instead of the config's (m8 §24: the instruct "
+                    "student); its tokenizer becomes the student tokenizer")
     ap.add_argument("--max-length", type=int, default=9216)
     ap.add_argument("--micro-batch", type=int, default=1)
     ap.add_argument("--accum", type=int, default=24)
@@ -45,6 +47,9 @@ def main() -> int:
     cfg.distill.max_length = a.max_length
     cfg.distill.per_device_train_batch_size = a.micro_batch
     cfg.distill.gradient_accumulation_steps = a.accum
+    if a.student:
+        cfg.model.student = a.student
+        cfg.model.student_tokenizer = a.student
     if a.init:
         cfg.model.student = a.init
     traces, ids = [], None
@@ -66,7 +71,12 @@ def main() -> int:
     set_seed(cfg.run.seed)
     stats, model, tok = run_distill(cfg=cfg, train_traces=traces, holdout_traces=[], output_dir=out / "student",
                                     device=device, mode="naive", beta_s=1.0)
+    n_trunc = sum(len(tok(t).input_ids) > a.max_length for t in [  # targets longer than the cut-off
+        tok.decode(tok.apply_chat_template([{"role": "user", "content": r.get("prompt", "")},
+                                            {"role": "assistant", "content": (r.get("trace") or "") + "\n\n" + (r.get("af_final_answer_only") or "")}],
+                                           add_generation_prompt=False)) for r in traces])
     info = {"traces": a.traces, "n": len(traces), "init": a.init or cfg.model.student, "seed": cfg.run.seed,
+            "student": cfg.model.student, "over_max_length_approx": n_trunc,  # without the system prompt: a few tokens short
             "max_length": a.max_length, "micro_batch": a.micro_batch, "accum": a.accum,
             "train_minutes": round((time.time() - t0) / 60, 1),
             "stats": {k: float(v) for k, v in (stats or {}).items() if isinstance(v, (int, float))}}

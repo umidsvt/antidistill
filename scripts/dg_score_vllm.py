@@ -9,6 +9,7 @@ greedy 32 tokens) and the setup's grader. Only the new-token limit is a paramete
         --config configs/setup2/math_U_s123.yaml --model outputs/setup3_math/U_long_s123/merged --max-new 8192 \
         --out outputs/setup3_math/scores/U_long_s123_8192.json
     # the untrained student: --model unsloth/Llama-3.2-3B (tokenizer taken from the config's student_tokenizer)
+GSM8K configs use the setup's GSM8K prompt (m8 §24); MATH is unchanged.
 """
 from __future__ import annotations
 
@@ -33,7 +34,7 @@ def main() -> int:
     from transformers import AutoTokenizer
     from vllm import LLM, SamplingParams
     from clean_sweep.config import FullConfig
-    from clean_sweep.data import format_prompt_math, load_dataset_splits
+    from clean_sweep.data import format_prompt_gsm8k, format_prompt_math, load_dataset_splits
     from clean_sweep.eval.correctness import check_trace_correctness
     from clean_sweep.utils import set_seed
 
@@ -48,7 +49,8 @@ def main() -> int:
     def ids_of(raw):
         return list(raw["input_ids"]) if hasattr(raw, "input_ids") or isinstance(raw, dict) else list(raw)
 
-    prompts = [ids_of(tok.apply_chat_template(format_prompt_math(ex["problem"]), add_generation_prompt=True,
+    fmt = format_prompt_gsm8k if cfg.data.dataset_name == "gsm8k" else format_prompt_math  # m8 §24: both datasets
+    prompts = [ids_of(tok.apply_chat_template(fmt(ex["problem"]), add_generation_prompt=True,
                                               truncation=True, max_length=cfg.generation.max_prompt_tokens))
                for ex in items]
     llm = LLM(model=a.model, tokenizer=tok_src, dtype="bfloat16", seed=cfg.run.seed, gpu_memory_utilization=a.gpu_mem,
