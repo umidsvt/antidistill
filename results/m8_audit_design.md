@@ -1921,6 +1921,15 @@ few steps; evaluation on 50 problems). It only checks that the pipeline runs, an
   - Every solution finishes; median 423 tokens (90th percentile 606).
 - **I0 on GSM8K:** 82.13 / 81.89 / 82.71% at 1,024 tokens and 82.13 / 81.89 / 82.80% at 8,192 (median 180 tokens).
   The teacher is 14 points above the untrained student, so U_inst − I0 can be at most about that.
+- **I0 on MATH:** 49.04 / 47.78 / 48.96% at 1,024 tokens (87–89% finished) and 49.10 / 47.58 / 49.14% at 8,192
+  (94–96% finished; median about 350 tokens).
+- **First S1 student (2026-11-19 17:27): U_inst on MATH, seed 123, 39.66% at 1,024 tokens, 9.4 points below I0.**
+  - It finishes 31.8% of its answers (I0: 87.4%), median 1,024 tokens: it imitates the field teacher's long
+    reasoning, much of which was itself cut at 1,024 tokens, and runs to the limit.
+  - Training: 5,000 solutions, 86 min, 4 longer than the 2,048-token cut-off.
+  - On the field's setup the teacher's solutions make the instruct student worse on MATH.
+- **S2 teacher on MATH:** running since 12:50; 10,173 of 12,221 items by 18:10 (about 1,120 tokens/s, slower than
+  estimated). Expected about 19:50.
 - **ADS λ 0.4 stopped after 2 of its 4 batches** (50 puzzles) to free GPUs 4–7 (§23 closed).
 
 ## Sources
