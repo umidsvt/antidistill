@@ -2156,6 +2156,24 @@ gap decomposition on the training puzzles where possible: puzzles the method nev
 whose reasoning is wrong while the answer matches (spurious rationales, from §20 the main failure of the base
 student), and wrong teacher answers learned (277 of the 1,712).
 
+**B3/B4 settings (fixed 2026-11-20 17:45, after the smoke test; `scripts/kk_grpo.py`, launcher
+`scripts/60_phase1_rl.sh`).**
+- GRPO (TRL 0.19.1, vLLM colocated) from the untrained instruct student; LoRA rank 128, alpha 128, all projections;
+  Dr. GRPO loss (no length or std normalization); learning rate 5e-6 constant after 3% warm-up; KL 1e-4 toward the
+  untrained student (the settings of the stable level-A GRPO in §15); 16 puzzles × 8 replies per step; temperature
+  1.0; replies up to 4,096 tokens; **1 epoch over the 1,712 puzzles with a teacher answer (107 steps)**; adapters
+  every 25 steps; the final adapter is scored with `kk_eval.py` like every student. No checkpoint selection.
+- B4 rewards the share of people labeled as the teacher labeled them, B3 exact agreement; both rewards and agreement
+  with the reference solution are logged, only the chosen one is trained on.
+- Smoke test (2 steps, B4, GPU 1): 13.7 min, peak 29.9 GiB; replies 1,280 tokens on average, 9–14% cut at 4,096;
+  exact-agreement reward 0 of 256 replies, partial 0.11–0.12 (unreadable answers score 0). A first try with 4
+  replies per forward pass ran out of memory in the log-probabilities (7.8 GiB); 2 per pass fits.
+- Why one epoch: two would take about 21 h per run on one GPU. B3 is expected to learn little, since its reward is
+  almost always 0 at the start (about 1 group in 12 has a success at a 1% solve rate); it is run with the same budget
+  so that B3 and B4 differ only in the reward.
+- Order: B4 on GPU 1 now; B3 on GPU 3 after B2 has finished there (the launcher waits for "GPU 3: queue empty" in
+  `logs/phase1/kk.log`), else on GPU 0 after the recipe check.
+
 **B1 result (seed 123, 2026-11-20 17:11; `outputs/kk_phase1/students/B1_s123/`).** The student trained on the
 teacher's answers alone writes only a CONCLUSION (67 tokens on average; every answer readable) and solves **14.9%** of
 the test puzzles (7 people 14.4%, 8 people 15.4%), against I0 1.3% and U_inst 53.1% for seed 123: a recovered share of
