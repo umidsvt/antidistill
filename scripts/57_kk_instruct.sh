@@ -45,14 +45,15 @@ job() {   # <gpu> <kind> <seed>
   esac
 }
 worker() {   # <gpu>: one job at a time on GPU $1, each tried up to twice
-  local g=$1 line i
+  local g=$1 line i ok
   while :; do
     until grab "$g"; do sleep 120; done
     line=$(next_job)
     [[ -z "$line" ]] && { release "$g"; break; }
     echo "[$(ts)] GPU $g: start $line"
-    for i in 1 2; do job "$g" $line && break; sleep 120; done \
-      && echo "[$(ts)] GPU $g: done  $line" || echo "[$(ts)] GPU $g: FAILED $line"
+    # (until 2026-11-20 the loop's status was that of its last `sleep`, so a job that failed twice was logged "done")
+    ok=1; for i in 1 2; do job "$g" $line && { ok=0; break; }; sleep 120; done
+    (( ok == 0 )) && echo "[$(ts)] GPU $g: done  $line" || echo "[$(ts)] GPU $g: FAILED $line"
     release "$g"
   done
 }

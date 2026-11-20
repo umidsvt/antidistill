@@ -2035,6 +2035,37 @@ checker rule (`forced_full.py`, scratch):
   one run with the fixed scorer.
 - Old files kept as `test_1024_old_scorer.json`.
 
+**Phase 0 result (queue done 2026-11-20 06:12; `scripts/phase0_table.py` → `outputs/phase0/table.json`).** G = U_inst −
+I0, seed-paired, 95% interval with t (2 df). Accuracy in %, the setup's checker with the fixed scorer.
+
+| Setting | I0 (s123 / s124 / s125) | U_inst (s123 / s124 / s125) | U_inst finished | G | 95% CI | Gap rule (≥ 10, CI > 0) |
+| --- | --- | --- | --- | --- | --- | --- |
+| GSM8K, S1 (7B teacher, 1,024) | 82.13 / 81.89 / 82.71 | 78.16 / 78.58 / 79.24 | 73–79% | −3.58 | −4.44 to −2.73 | no |
+| GSM8K, S2 (32B teacher, 8,192) | 82.13 / 81.89 / 82.80 | 78.74 / 79.07 / 79.65 | 99.3–99.7% | −3.12 | −3.84 to −2.39 | no |
+| MATH, S1 (7B teacher, 1,024) | 49.04 / 47.78 / 48.96 | 41.18 / 41.08 / 40.14 | 26–32% | −7.79 | −10.43 to −5.16 | no |
+| MATH, S2 (32B teacher, 8,192) | 49.10 / 47.58 / 49.14 | 48.34 / 49.98 / 49.00 | 62–72% | +0.50 | −3.66 to +4.66 | no |
+
+- **No GSM8K or MATH setting has a gap.** Training the instruction-tuned student on the teacher's solutions lowers
+  it on GSM8K (both teachers) and on MATH with the field's teacher, and leaves it unchanged on MATH with the 32B.
+- **Where the S2 MATH student loses** (per-problem split, seeds 123 / 124 / 125): replies that finish are better
+  than I0 on the same problems (67.0 vs 64.2, 63.0 vs 58.7, 67.6 vs 63.8); replies cut at 8,192 tokens (28–38% of
+  all) are worse (17.4 vs 24.0, 17.3 vs 19.7, 16.2 vs 23.2), and 85–94% of them end in a repetition loop (their last
+  300 characters occur earlier in the reply). The teacher finished 96% of the test problems. So the recipe (the
+  setup's LoRA r128, 3 epochs, lr 5e-4, built for 1,024-token solutions) leaves the student looping on long
+  solutions; on finished replies the gain is +3 to +4 points.
+- **GSM8K S2:** 99% of replies finish, and they are worse than I0 on the same problems (79.2 vs 82.2, 79.2 vs 81.9,
+  79.8 vs 82.9).
+- **MATH S1:** the student runs to 1,024 tokens on 68–74% of problems (the field teacher's solutions were cut there
+  too), and is worse than I0 on both its finished and its cut replies.
+- **Puzzles** (1,000 test puzzles, last answer / first answer): I0 1.3 / 1.3, 0.5 / 0.5, 0.6 / 0.6 (s123–125);
+  U_inst s124 54.1 / 53.8, s125 54.5 / 54.5 (finished 77%). Seed 123's U_inst never ran: both training attempts
+  ran out of memory (another process, PID 4005144, took 28.7 GB of GPU 3 at 19:29), and the launcher logged the job
+  "done" (bug: the retry loop's status was that of its last `sleep`; fixed). Rerun of that approved job queued
+  2026-11-20 14:00 (`u 123`, the same command; the failed log kept as `train_oom_2026-11-19.log`).
+- **Interpretation (after the numbers, as §24 allows):** with an instruction-tuned 3B student and 5,000 problems, the
+  GSM8K/MATH setups leave nothing for an answers-only method to close; the puzzle testbed leaves about 53 points.
+  The next step is the authors' decision (asked 2026-11-20).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
