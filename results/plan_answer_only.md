@@ -23,7 +23,8 @@ Decided at the 2026-11-18 meeting:
   text briefly, appendix in full). The plan's risk 1 below happened.
 - One recipe check on MATH (full fine-tuning, seed 123; m8 §25.1) is running.
 - Phase 1 runs on the puzzles (m8 §25.2): B1 answers only reached 14.9% on seed 123 (26% of the gap, with no
-  reasoning at all); B2 self-training with hints is running; RL (B3, B4) and the controls follow.
+  reasoning at all); B2 self-training with hints 2.6% (1,617 of 1,712 kept texts from hint rounds); RL B3/B4 running (1 epoch,
+  about 13 h each with scoring); the controls follow.
 - Paper: new framing draft `icml2027_answers/` in the paper repo.
 - GPUs until 2026-11-22: only 0, 1 and 3 (4–7 for jafar, 2 for the user's other project).
 

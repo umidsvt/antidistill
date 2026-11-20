@@ -2181,6 +2181,14 @@ the test puzzles (7 people 14.4%, 8 people 15.4%), against I0 1.3% and U_inst 53
 66% of the people right. So the answers alone teach a reasoning-free shortcut that is far above chance, and above the
 base student's level-A floor (F_A 1.7%, §20). Seeds 124–125 come later with the other baselines.
 
+**B2 result (seed 123, 2026-11-20 17:43; `outputs/kk_phase1/star_s123/`, `students/B2_s123/`).** Tries: 95 of the
+1,712 puzzles solved in the student's own 8 tries (5.5%), the other 1,617 in the first hint round, none left
+unsolved; 1,435 kept texts end in the right answer (the teacher's errors pass through). The student trained on them
+solves **2.6%** of the test puzzles (finished 98.4%, 714 tokens), against I0 1.3%: a recovered share of 2.5%, far
+below B1's 26%. As with the base student (§20, F_A 1.7%), almost every kept text comes from a hint round, where the
+student states the given answer; training on them teaches little. Self-training with hints is the weakest baseline
+so far, and the answers-only shortcut of B1 the strongest.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
