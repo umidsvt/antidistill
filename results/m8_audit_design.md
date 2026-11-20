@@ -2156,7 +2156,7 @@ gap decomposition on the training puzzles where possible: puzzles the method nev
 whose reasoning is wrong while the answer matches (spurious rationales, from §20 the main failure of the base
 student), and wrong teacher answers learned (277 of the 1,712).
 
-**B3/B4 settings (fixed 2026-11-20 17:45, after the smoke test; `scripts/kk_grpo.py`, launcher
+**B3/B4 settings (fixed 2026-11-20 17:39, after the smoke test; `scripts/kk_grpo.py`, launcher
 `scripts/60_phase1_rl.sh`).**
 - GRPO (TRL 0.19.1, vLLM colocated) from the untrained instruct student; LoRA rank 128, alpha 128, all projections;
   Dr. GRPO loss (no length or std normalization); learning rate 5e-6 constant after 3% warm-up; KL 1e-4 toward the
