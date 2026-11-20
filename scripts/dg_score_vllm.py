@@ -73,10 +73,16 @@ def main() -> int:
     rows = []
     for ex, o, s, af in zip(items, outs, af_suffix, af_outs):
         c = o.outputs[0]
-        forced = check_trace_correctness(f"{c.text.strip()}\n{(s + af.outputs[0].text).strip()}", ex["solution"])
+        # the checked text is the reply, the cue and the forced answer, joined as the setup joins them
+        # (clean_sweep.generation.core._answer_force): the checker splits it at the cue ("\n\n**Final Answer**...")
+        # and accepts the reply's own answer or the forced one. Until 2026-11-19 the parts were stripped and joined
+        # with one newline, which hid the cue whenever the reply already had "</think>"; only the full text was then
+        # read (m8 §24, scorer fix).
+        tail = s + af.outputs[0].text
+        forced = check_trace_correctness(c.text + tail, ex["solution"])
         rows.append({"example_id": ex["example_id"], "correct": bool(forced["correct"]),
                      "extracted_answer": forced["extracted_answer"], "finished": c.finish_reason == "stop",
-                     "n_tokens": len(c.token_ids), "text": c.text})
+                     "n_tokens": len(c.token_ids), "text": c.text, "forced": tail})
     n = len(rows)
     tokens = sorted(r["n_tokens"] for r in rows)
     summary = {"model": a.model, "max_new": a.max_new, "seed": cfg.run.seed, "n": n,

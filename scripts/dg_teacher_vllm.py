@@ -108,7 +108,9 @@ def generate(a) -> int:
         tail = (s + af.outputs[0].text).strip()
         af_final = tail[tail.index("**Final Answer**"):] + tok.eos_token  # the setup's saved field ends in EOS
         raw = check_trace_correctness(reasoning, it["solution"])
-        forced = check_trace_correctness(f"{reasoning}\n{tail}", it["solution"])
+        # joined as the setup joins them, so the checker finds the cue and accepts the own or the forced answer; until
+        # 2026-11-19 the stripped parts were joined with one newline, which hid the cue (m8 §24, scorer fix)
+        forced = check_trace_correctness(c.text + s + af.outputs[0].text, it["solution"])
         rows.append({**it, "method": "standard", "teacher": a.teacher, "max_new": a.max_new, "trace": reasoning,
                      "af_final_answer_only": af_final, "raw_correct": bool(raw["correct"]),
                      "af_correct": bool(forced["correct"]), "correct": bool(forced["correct"]),

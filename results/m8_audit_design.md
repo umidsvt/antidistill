@@ -1943,6 +1943,79 @@ few steps; evaluation on 50 problems). It only checks that the pipeline runs, an
   the two launchers apart.
 - **ADS λ 0.4 stopped after 2 of its 4 batches** (50 puzzles) to free GPUs 4–7 (§23 closed).
 
+**Scorer fix (2026-11-19, 19:40).** A bug in our own scorer (`scripts/dg_score_vllm.py`) made it stricter than the
+setup's checker for replies that already contain `</think>`.
+- **How the setup checks** (`clean_sweep.generation.core._answer_force`, `eval/correctness.py`): it appends the cue
+  `\n\n**Final Answer**\n\[\boxed{` to the reply, lets the model write the forced answer, and splits the joined text
+  at the cue. It accepts if the full text, the reply alone, or the forced answer alone matches the reference.
+- **The bug:** our scorer stripped the reply and the cue and joined them with a single newline. When the reply had
+  `</think>`, the cue then lost one of its two leading newlines, the checker did not find it, and read only the full
+  text, which took the forced answer. A correct reply followed by a malformed forced answer was scored wrong.
+  Replies without `</think>` get `\n</think>` before the cue, so the cue survived; their scores are unaffected.
+- **Affected stored files** (offline count: rows whose reply alone matches the reference but are scored wrong):
+
+  | File | Replies with `</think>` | Scored wrong, reply right | Stored | At least |
+  | --- | --- | --- | --- | --- |
+  | I0, all 12 files | 0 | 0 | unchanged | unchanged |
+  | S1 MATH s123, 1,024 | 1,054 | 89 | 39.66% | 41.44% |
+  | S1 MATH s124, 1,024 | 960 | 71 | 39.98% | 41.40% |
+
+  "At least" adds only those rows. The forced answers were not stored, so the third part of the rule (the forced
+  answer alone) cannot be rechecked offline; an exact figure needs a rescore.
+- **Fix:** the scorer now joins reply, cue and forced answer exactly as the setup does, and stores the forced part
+  (`forced`). Checked on the two 32B smoke cases (`\dfrac` written as `dfrac`; `(0, 0, 3)` as `0, 0, 3`): rejected
+  before, accepted after. Python files are read when a job starts, so every scoring job from S1 MATH s125 on uses the
+  fix. S1 MATH s123 and s124 are rescored with the fixed scorer (go-ahead from the user, 19:50): the old files are
+  kept as `test_1024_old_scorer.json`, and two jobs `s1 math 123|124` are put at the front of the queue's remaining
+  lines. They find `train_info.json`, skip training and only score the stored model (about 27 minutes each).
+- **The 32B teacher's `correct` field** (`scripts/dg_teacher_vllm.py`, same join) is affected in the same way. It is
+  not used for training (students train on every solution). Offline, with the setup's rule: GSM8K training 94.75% →
+  94.77% (1 problem), test 96.53% → 96.61% (1), MATH smoke 14 → 16 of 16. The script is fixed after the MATH merge,
+  which runs from it.
+
+**32B teacher on MATH (merged 2026-11-19 20:39; `outputs/phase0/teacher32b_math/`).** Offline analysis with the setup's
+checker rule (`forced_full.py`, scratch):
+
+| Split | n | Finished | Own answer right | Stored `correct` (bug) | Setup's rule | Own right, forced wrong | Cut off; right after forcing |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Distinct training | 7,221 | 94.7% | 91.2% | 87.0% | 92.3% | 532 (8.1% of own-right) | 383; 134 |
+| Training, seed 123 | 5,000 | 94.8% | 91.2% | 87.2% | 92.3% | 369 (8.1%) | 261; 97 |
+| Test | 5,000 | 96.1% | 92.4% | 88.0% | 93.3% | 322 (7.0%) | 197; 73 |
+
+- Median length 1,392 tokens, 90th percentile 5,247 (training). So 5.3% of training solutions are cut at 8,192; the
+  smoke sample (16 of 16 finished) was too small to show this.
+- **The forced answer is often not a copy of the teacher's own answer.** Seed 123's training file: 195 forced lines
+  are a single letter ("B", "D"), 92 are the literal "ANSWER" (from the setup's system prompt, "\boxed{ANSWER}"),
+  114 run on past the box (for example "Wait, hold on! I just realized I made a mistake"). Others drop a sign
+  (−48 → 48) or part of a fraction (1/108 → 108). Every finished solution has its own boxed answer after `</think>`.
+- **Consequence for U_inst:** the student is trained on solution + forced line (setup's format). In 7.4% of seed
+  123's MATH targets the last line contradicts the teacher's own correct answer. The checker reads the last boxed
+  answer, so a student that learns to end this way loses those points. GSM8K: 6 of 4,963 (0.1%).
+- **Decision (the user, 2026-11-19 21:00): S2 targets end in the teacher's own answer.** When the teacher finished,
+  its training target's final line is built from its own answer; when it was cut off, the forced line stays (its
+  only answer). Format and every other part unchanged; no reference answers used; S1 stays exactly as the setup. The
+  same rule defines the 32B teacher's released answer for Phase 1.
+- **Implementation** (`scripts/dg_own_final.py`, run 21:00–21:20, before any S2 training started). "Own answer" =
+  every box on the line after `</think>` where the last box starts. Two refinements after looking at the output:
+  - the first version took only the last box; 44 MATH cases with several answers ("the solutions are \boxed{81} and
+    \boxed{256}") lost all but one, so every box on that line is kept, joined as the forced line joins them;
+  - a line-by-line search missed a box spanning lines (a matrix, 1 row), so boxes are found over the whole text.
+
+  The originals are kept as `train_s<seed>_forced.json`, and each row keeps its forced line (`af_final_forced`) and
+  says which rule applied (`final_from`); counts in `own_final.json`.
+
+  | Seed 123 | Final line from own answer | Kept forced (cut off) | Line changed | Checker accepts the final line, forced → own |
+  | --- | --- | --- | --- | --- |
+  | MATH | 4,739 | 261 | 1,337 | 4,162 → 4,493 |
+  | GSM8K | 5,237 | 1 | 1,032 | 4,957 → 4,958 |
+
+  Most changed lines are the same answer in the teacher's own writing: GSM8K "\$135,000" or "13 \text{ years}"
+  where the forced line has "135000" or "13" (the setup's prompt asks for units in the box), MATH spacing and
+  `\dfrac`. 26–41 forced lines per file ran on past the box ("\boxed{60}\] feet"). One MATH case goes the other way
+  (forced right, own wrong). Seeds 124 and 125 are alike (`own_final.json`).
+- **The teacher script's checker join** is fixed the same way as the scorer's (the stored `correct` and
+  `summary.json` of both teacher runs keep the old join; the table above has the setup's rule).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
