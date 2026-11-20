@@ -1,4 +1,4 @@
-# Plan: an answers-only fine-tuning method that approaches teacher distillation (draft, 2026-11-19)
+# Plan: an answers-only fine-tuning method that approaches teacher distillation (draft 2026-11-19, updated 2026-11-20)
 
 Decided at the 2026-11-18 meeting:
 - The main aim is a new level-A fine-tuning method (RL, SFT, a combination, consistency, …) on the math setups. The
@@ -14,6 +14,18 @@ Decided at the 2026-11-18 meeting:
   the narrow-gap case.
 - ADS is closed (calibration only).
 - The literature pass is done (`results/lit_answer_only.md`).
+
+**Phase 0 result and decisions of 2026-11-20** (m8 §24–25; write-up `results/phase0_results.md`):
+- With Llama-3.2-3B-Instruct, training on the teacher's solutions does not beat the untrained student on GSM8K or
+  MATH with either teacher (gaps −3.6, −3.1, −7.8, +0.5 points). On the puzzles it takes the student from 0.8% to
+  54.3% (+53.8). No math setting passes the gap rule (≥ 10 points, CI > 0).
+- **The puzzle testbed is the main setting.** GSM8K/MATH are reported as "no gap for an instruct attacker" (main
+  text briefly, appendix in full). The plan's risk 1 below happened.
+- One recipe check on MATH (full fine-tuning, seed 123; m8 §25.1) is running.
+- Phase 1 runs on the puzzles (m8 §25.2): B1 answers only and B2 self-training with hints are running; RL (B3, B4)
+  and the controls follow.
+- Paper: new framing draft `icml2027_answers/` in the paper repo.
+- GPUs until 2026-11-22: only 0, 1 and 3 (4–7 for jafar, 2 for the user's other project).
 
 This file is a plan, not a rule. Each phase gets its m8 entry (what is run, what each outcome means) before it runs,
 and nothing starts without a go-ahead.
@@ -142,5 +154,10 @@ that pass Phase 0.
 
 1. ~~Close ADS~~ (done 2026-11-19).
 2. ~~Literature pass~~ (done: `results/lit_answer_only.md`).
-3. Phase 0: rule drafted (m8 §24). Waiting for the go-ahead to run it.
-4. Phase-1 baselines on seed 123, then the decomposition (m8 rule to be written after Phase 0).
+3. ~~Phase 0~~ (done 2026-11-20: m8 §24, `results/phase0_results.md`). Puzzle U_inst seed 123 rerun is finishing.
+4. MATH recipe check (m8 §25.1): running; read-out into m8, `results/phase0_results.md` and the paper.
+5. Phase 1 on the puzzles (m8 §25.2, approved 2026-11-20): B1 and B2 running; then RL baselines B3/B4 (adapt
+   `dg_rl_base.py` to the puzzles, smoke test, fix settings in m8), the two controls, and the gap decomposition.
+6. Phase 2: the method, chosen by the decomposition.
+7. Second student (Qwen2.5-3B-Instruct; download needed) on the puzzles.
+8. Paper: fill `icml2027_answers/` as results land; the authors add the missing references listed in its README.

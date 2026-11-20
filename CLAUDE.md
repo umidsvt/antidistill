@@ -1,6 +1,15 @@
 # CLAUDE.md — guide for coding agents
 
-## Start here (state of 2026-11-15)
+## Start here (state of 2026-11-20)
+
+**Current direction (meetings of 2026-11-18 and 2026-11-20).** The main aim is an **answers-only fine-tuning method**:
+with only the teacher's released answers, bring an instruction-tuned student (Llama-3.2-3B-Instruct; Qwen2.5-3B-Instruct
+second) as close as possible to the same student trained on the teacher's solutions (U). Phase 0 (m8 §24,
+`results/phase0_results.md`) found no gap on GSM8K/MATH for this student with either teacher, and a 54-point gap on
+the Knights-and-Knaves puzzles, which are now the **main testbed**. Running: a MATH recipe check (full fine-tuning,
+m8 §25.1) and the Phase 1 answers-only baselines on the puzzles (m8 §25.2). Plan and next steps:
+`results/plan_answer_only.md`. Paper draft: `icml2027_answers/` in the paper repo. GPUs: see rule 4 and the user's
+current reservations (GPUs 4–7 not ours until 2026-11-22; GPU 2 kept free for the user's other project).
 
 **Machine move (2026-10-29).** dspl1 was rebuilt. Only what is in git survived: code, configs, the `results/*.md`
 records and the two hindsight datasets. Every per-problem result file, checkpoint, generated dataset (raw LIMO, Solo,
@@ -11,9 +20,9 @@ written in m8. The rebuilt host's GPU P2P works (`scripts/check_host.sh`, 2026-1
 GPUs 0–3, against 4.7 GB/s with P2P disabled on the old host), so the P2P workarounds in §0.5 and §7.2–7.3 below no
 longer apply to dspl1; `.host_profile` sets no NCCL overrides.
 
-This repository is the research code for **the answer floor of anti-distillation defenses and a puzzle testbed where
-the teacher is needed** (paper draft: private repo https://github.com/ceferisbarov/antidistillation-overleaf, folder
-`icml2027_testbed/`). Every anti-distillation defense keeps the teacher's final answers correct, so it can protect at
+This repository is the research code for **answers-only distillation and the answer floor of anti-distillation
+defenses, with a puzzle testbed where the teacher is needed** (paper draft: private repo
+https://github.com/ceferisbarov/antidistillation-overleaf, folder `icml2027_answers/`; earlier `icml2027_testbed/`). Every anti-distillation defense keeps the teacher's final answers correct, so it can protect at
 most the gap between the student trained on the teacher's solutions and the best answers-only student. We measure that
 gap in the GSM8K/MATH setup the field uses and on fresh Knights-and-Knaves puzzles (m8 §16–18). The work grew out of a
 replication of Kim et al. and attacks on their defense, then an audit of evaluation setups (m8 §1–15, draft
@@ -22,12 +31,14 @@ it.
 
 **Read in this order.**
 1. `README.md`: what the project is, the results so far, layout, machine setup, data not in git.
-2. `IMPLEMENTATION_PLAN.md`, Part I: where each experiment stands, what is running, next phases, open decisions.
-   For work on the level-A attacker (RL): `results/briefing_levelA_rl.md`.
+2. `results/plan_answer_only.md`: the current plan (Phases 0–4), decisions and next steps;
+   `results/phase0_results.md`: the Phase 0 result with every setup detail; `results/lit_answer_only.md`: the
+   literature map for the method. `IMPLEMENTATION_PLAN.md`, Part I, covers the earlier phases.
 3. `results/m8_audit_design.md` (m8): the live design record. Definitions (§8, and §11, which replaces §8.3), the
    attacker ladder (§9.3), and every decision rule, each written before its result, followed by the result. Sections
-   are in time order; a later section says when it supersedes an earlier one. The current work is §13–18: level A by
-   self-training and RL, how predictable the teacher's answers are, the puzzle pilot and step 2.
+   are in time order; a later section says when it supersedes an earlier one. The current work is §24–25: Phase 0
+   (instruct student), the MATH recipe check and Phase 1 on the puzzles. §13–23 hold the audit-era results (level A by
+   self-training and RL, answer predictability, the puzzle pilot, step 2, defenses), now the paper's appendix.
 4. `results/REPORT.md`: the LIMO phase (defenses, attacks), when you need those numbers.
 
 **Rules for this project (agreed with the authors).**
@@ -83,6 +94,9 @@ runs as `PYTHONPATH=third_party/ext/distillation-game/src .venv-dg/bin/python ..
 | Puzzle pilot (§17) | `outputs/kk_pilot/<model>/tries.jsonl`, `summary.json` |
 | Puzzle step 2 (§18) | `outputs/kk_step2/gen/` (solution writers), `train_sets/`, `students/<student>_s<seed>/` (`adapter/`, `train_meta.json`, `test/` first scoring, `test_eot/` rescore) |
 | DeepMath pilot | `outputs/setup3/pilot.json` |
+| Phase 0 (m8 §24) | `outputs/phase0/`: `teacher32b_{gsm8k,math}/` (32B teacher; `train_s<seed>.json` with own-answer final lines, originals `train_s<seed>_forced.json`), `I0/`, `S1/` (field teacher), `S2/` (32B teacher), `table.json` (`scripts/phase0_table.py`); puzzles `outputs/kk_step2/students/{untrained_inst,Uinst}_s<seed>/` |
+| MATH recipe check (m8 §25.1) | `outputs/phase0/S2full/math_s123/` (`train_info.json`, `test_8192.json`) |
+| Phase 1 on the puzzles (m8 §25.2) | `outputs/kk_phase1/`: `train_sets/`, `star_s<seed>/` (B2 tries), `students/<B1|B2|...>_s<seed>/` |
 
 ---
 

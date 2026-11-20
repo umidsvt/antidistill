@@ -1,7 +1,7 @@
 # antidistill
 
-Research code for the paper *What Can Anti-Distillation Defenses Protect? An Answer Floor, and a Testbed Where the
-Teacher Is Needed* (working title, aimed at ICML 2027).
+Research code for the paper *How Far Can a Teacher's Answers Take a Student? Answers-Only Distillation and What
+Anti-Distillation Defenses Can Protect* (working title, aimed at ICML 2027).
 
 The project started as a replication of Kim et al. (arXiv:2603.15500) and a set of adaptive attacks on reasoning
 distillation defenses (results/REPORT.md). From 2026-10-20 it was an audit of the setups used to evaluate those
@@ -11,16 +11,25 @@ defended solutions and train from the answers alone. The most any such defense c
 between a student trained on the teacher's solutions and the best answers-only student, the **answer floor**. We
 measure that gap in the setups the field uses (it is small or zero) and build a **puzzle testbed** where it is large.
 
+**Current direction (meetings of 2026-11-18 and 2026-11-20).** The main contribution becomes an **answers-only
+fine-tuning method**: using only the teacher's released answers, get an **instruction-tuned student**
+(Llama-3.2-3B-Instruct; Qwen2.5-3B-Instruct second) as close as possible to the same student trained on the teacher's
+solutions. Phase 0 found that GSM8K and MATH leave an instruct student no gap, so the **puzzle testbed is the main
+setting**; the attacker ladder (levels B–D), the audit and the defense results move to the appendix. Plan:
+[results/plan_answer_only.md](results/plan_answer_only.md); Phase 0 write-up:
+[results/phase0_results.md](results/phase0_results.md).
+
 ## Start here
 
 | If you are | Read |
 | --- | --- |
 | a coding agent (Claude Code, Codex, ...) | [CLAUDE.md](CLAUDE.md), section "Start here"; Codex and others: [AGENTS.md](AGENTS.md) |
-| picking up the work | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), Part I: status, running jobs, next phases, open decisions |
+| picking up the work | [results/plan_answer_only.md](results/plan_answer_only.md) (current plan and next steps), then [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), Part I, for the earlier phases |
+| looking for the Phase 0 result (instruct student, GSM8K/MATH/puzzles) | [results/phase0_results.md](results/phase0_results.md) |
 | working on a stronger level-A attacker (RL) | [results/briefing_levelA_rl.md](results/briefing_levelA_rl.md) |
 | looking for a number or a decision rule | [results/m8_audit_design.md](results/m8_audit_design.md): the live design record; every rule is written there before its result (§16–18 for the floor and the testbed) |
 | looking for the LIMO-phase results (defenses, attacks) | [results/REPORT.md](results/REPORT.md) |
-| looking for the paper | private repo https://github.com/ceferisbarov/antidistillation-overleaf, folder `icml2027_testbed/` (the earlier audit draft is `icml2027_audit/`) |
+| looking for the paper | private repo https://github.com/ceferisbarov/antidistillation-overleaf, folder `icml2027_answers/` (current framing, from 2026-11-20); earlier drafts `icml2027_testbed/` and `icml2027_audit/` |
 
 ## The argument, in one paragraph
 
@@ -32,7 +41,17 @@ teacher's answer, or RL rewarded by it). Any answer-preserving defense leaves F_
 **P_ℓ = U − F_ℓ**. The teacher is *needed* at level ℓ if U − R_ℓ, and the protectable part *exists* if U − F_ℓ, exceeds a
 quarter of U − U₀ with a 95% interval over 3 seeds that excludes 0 (m8 §11, §18).
 
-## Results so far (2026-11-15)
+## Results so far
+
+**Answers-only method, instruct student (2026-11-20; m8 §24–25).**
+
+| Setup | Result | m8 |
+| --- | --- | --- |
+| Phase 0: does Llama-3.2-3B-Instruct gain from the teacher's solutions? (3 seeds) | GSM8K: −3.6 points (field teacher R1-Distill-Qwen-7B, 1,024 tokens), −3.1 (R1-Distill-Qwen-32B, 8,192). MATH: −7.8 and +0.5 (−3.7 to +4.7). **No gap on GSM8K/MATH.** Puzzles: 0.8% → 54.3% (2 seeds), **+53.8 points** | §24 |
+| MATH recipe check (full fine-tuning instead of LoRA, seed 123) | running | §25.1 |
+| Phase 1 on the puzzles: answers-only baselines (B1 answers only, B2 self-training with hints; RL next) | running | §25.2 |
+
+**Answer floor and attacker ladder, base student (2026-11-15; now the paper's appendix).**
 
 | Setup | Result | m8 |
 | --- | --- | --- |
@@ -41,7 +60,8 @@ quarter of U − U₀ with a 95% interval over 3 seeds that excludes 0 (m8 §11,
 | MATH version of the same setup | U 15.5%, level B 15.5%, level C 17.6%: nothing protectable at B, C. Level A not run | §12 |
 | How predictable the teacher's answers are (16 tries per problem and model) | GSM8K bits per problem: base student 1.93, Llama-3.2-3B-Instruct 0.39, Qwen2.5-7B-Instruct 0.10. Pre-registered test held at C, failed at B (equal-weight pooling). MATH C still to run | §16 |
 | Knights-and-Knaves pilot (Xie et al.'s generator; teacher R1-Distill-Qwen-32B) | At 7 and 8 people the teacher solves 76% and 71%, the best owned model (R1-Distill-Qwen-7B) 28% and 20%: go. Qwen3-8B solves 92–95%, more than the teacher (limitation) | §17 |
-| Knights-and-Knaves step 2 (2,000 training puzzles, 1,000 test, 3 seeds) | **Provisional** (scoring bug, rescore running): U 41–49%, floor F_D 19–22%, R_D 11–12%, R_C 5%, R_B 0.4%. Teacher needed at B, C, D; **protectable part exists (+22 to +27 points)** | §18 |
+| Knights-and-Knaves step 2 (2,000 training puzzles, 1,000 test, 3 seeds, first-answer scoring) | U 48.8%, floor F_D 22.4%, R_D 12.9%, R_C 4.5%, R_B 0.5%, untrained 0.3%. Teacher needed at B, C, D; **protectable part U − F_D = +26.4 (19.7 to 33.1)**. Level A: F_A 1.7% | §18, §20 |
+| Defenses on the puzzles | Trace rewriting (Ma et al.'s instruction, gpt-oss-120b): defended student 6.4%, **below the floor**. Corrupting 50% of the answers lowers F_D by only 8.4 points. ADS: no strength keeps the teacher's answers | §21–23 |
 
 Earlier results (LIMO setup, combination students, the MATH full-budget and DeepMath pilots): m8 §9–11 and
 results/REPORT.md.

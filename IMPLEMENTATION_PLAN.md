@@ -1,5 +1,9 @@
 # Implementation Plan
 
+**Update 2026-11-20.** The current plan is `results/plan_answer_only.md` (answers-only method with an instruction-tuned
+student; the puzzle testbed is the main setting; Phase 0 result in `results/phase0_results.md`; paper draft
+`icml2027_answers/`). Part I below describes the answer-floor phase, whose results are now the paper's appendix.
+
 **Status: 2026-11-15.** Part I is the current plan: the answer floor and the Knights-and-Knaves testbed (agreed after
 the meeting of 2026-11-08). Part II is the audit plan of October 2026, which Part I builds on and replaces. Part III is
 the original plan of September 2026 (replication and attacks), kept because it documents the LIMO pipeline. For any
