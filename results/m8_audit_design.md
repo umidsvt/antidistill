@@ -2066,6 +2066,93 @@ I0, seed-paired, 95% interval with t (2 df). Accuracy in %, the setup's checker 
   GSM8K/MATH setups leave nothing for an answers-only method to close; the puzzle testbed leaves about 53 points.
   The next step is the authors' decision (asked 2026-11-20).
 
+## 25. Phase 1: answers-only baselines on the puzzle testbed, and a recipe check on MATH (2026-11-20; go-ahead from the user)
+
+**Decisions of the user (2026-11-20, ~15:50).**
+- **The puzzle testbed is the main setting** for the answers-only method. GSM8K/MATH are reported as "no gap for an
+  instruction-tuned attacker" (§24), briefly in the main text and in full in the appendix.
+- **One recipe check on MATH** (below).
+- **Phase 1 on the puzzles** goes ahead (below).
+- **GPUs:** GPUs 4–7 are not used until 2026-11-22 ~15:40 (jafar's runs); GPU 2 is kept free for the user's other
+  project. Our jobs use GPUs 0, 1 and 3.
+
+### 25.1 Recipe check: the 32B-teacher MATH student with full fine-tuning
+
+**Why.** The S2 MATH student loops on 28–38% of test problems (§24). The setup's recipe is LoRA (rank 128, learning
+rate 5e-4), built for 1,024-token solutions. Reasoning distillation is usually done by full fine-tuning (DeepSeek's
+R1-Distill models, s1, LIMO). If full fine-tuning also leaves the gap far below 10 points, the result of §24 does not
+depend on the LoRA recipe.
+
+**Run.** Seed 123, the same 5,000 training texts as S2 MATH s123 (`teacher32b_math/train_s123.json`, own-answer
+final lines), the same chat template, prompt, completion-only loss and data order as the setup's trainer.
+- Changes: every weight trained (no LoRA); learning rate 1e-5 (LoRA's 5e-4 is far too high for full fine-tuning).
+- Kept: 3 epochs, cosine schedule, 3% warm-up, weight decay 0.1, clipping 1.0, effective batch 24 (1 × 24), cut-off
+  9,216 tokens, bf16 compute.
+- To fit one 46 GB GPU: fp32 weights with 8-bit AdamW (bitsandbytes) and Liger's fused cross-entropy (both
+  installed into `.venv-dg` without changing other packages), gradient checkpointing.
+- Code: `scripts/dg_full_ft.py`. A smoke test on the 24 longest texts checks memory first.
+- Scored like every Phase-0 student: `dg_score_vllm.py`, 8,192 tokens, the fixed scorer. One GPU, about 4 h
+  training and 4–5 h scoring.
+
+**Read-out.** Accuracy, gap against I0 s123 (49.10%), finished share and the loop share, next to the LoRA student
+(48.34%). One seed, so the read-out is descriptive: whether the gap moves toward 10 points.
+
+**Smoke test (2026-11-20 15:57, GPU 0).** One optimizer step on the 24 longest texts (209,789 tokens): peak memory
+35.6 GiB, 54 s. 3 of the 24 come out at 9,217 tokens after the setup's decode/re-encode and lose their last token at
+the 9,216 cut-off, exactly as in the setup's LoRA trainer (same code path). Launched with
+`scripts/58_recipe_check.sh` (G=0): training, then scoring.
+
+**First launch ran out of memory (16:00, at the second optimizer step).** The smoke test covered only the first
+step, before the optimizer states exist; from the second step on, fp32 weights, fp32 gradients and the 8-bit states
+(32-bit for the tied embedding) do not fit together. Fix, a memory setting only: bitsandbytes' paged 8-bit AdamW
+(states move to CPU memory under pressure) and `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`; the smoke test
+now runs two steps (48 longest texts: 51 s per step, no slowdown from paging). Relaunched 16:03. Log of the failed
+run: `logs/phase1/fullft_math_s123_oom1.log`.
+
+### 25.2 Phase 1 on the puzzles: answers-only baselines with the instruction-tuned student
+
+**Attacker.** Llama-3.2-3B-Instruct with the teacher's released answers: for each of the 2,000 step-2 training
+puzzles, the CONCLUSION of the teacher's solution (`outputs/kk_step2/gen`, the teacher's first try, as §20). 1,712
+puzzles have a readable answer, of which 1,435 are right; 288 have none. An answers-only attacker has nothing for
+those 288: they are reported and not trained on, as in §20.
+
+**Fixed for every baseline.** Seed 123 for development. The §18 training recipe (`kk_sft.py`: LoRA rank 128, lr
+5e-4, 3 epochs, effective batch 24) unless a method says otherwise. Scored like U_inst (§24): 1,000 test puzzles, one
+try, temperature 0.6, top-p 0.95, 8,192 tokens, the strict last-answer checker, first answer also reported. No
+choice is made on the test puzzles; a method with a free setting fixes it before its run here.
+
+**Baselines, in order.**
+1. **Answers only (B1).** SFT on the puzzle → "CONCLUSION:" plus the teacher's labels, no reasoning (the
+   answers-only SFT baseline of Ma et al. 2026).
+2. **Self-training with hints (B2), §20's recipe for the instruct student.** The untrained instruct student tries
+   each puzzle 8 times in its chat format (the U_inst prompt); the first try whose CONCLUSION equals the teacher's
+   answer is kept. Puzzles never solved get the teacher's answer as a hint for 8, then 32 more tries; the kept text has
+   no hint. SFT on the kept texts. Same sampling as §20 (temperature 0.8, 2,048 tokens), so that B2 and §20 differ only
+   in the student and its prompt format.
+3. **RL rewarded by the teacher's answer (B3), and a partial-credit variant (B4).** GRPO from the untrained instruct
+   student; reward 1 if the CONCLUSION equals the teacher's answer (B3), or the share of people labeled as the teacher
+   labeled them (B4), 0 for an unreadable answer. The untrained student solves about 1% of puzzles, so B3's reward
+   is rarely non-zero; B4 tests whether partial credit fixes that. Settings (group size, rollout length, steps) are
+   fixed here before the first run, after a smoke test of the code.
+4. **Controls** for the best of B1–B4: the student's own majority answers instead of the teacher's (what the
+   teacher's answers add), and the true answers (an upper reference).
+
+**Implementation and smoke tests (2026-11-20 16:05).** Launched 16:07.
+- B1: `scripts/kk_phase1_sets.py answers` → `outputs/kk_phase1/train_sets/B1_answers.jsonl` (1,712 examples, 1,435
+  with the right answer, 288 puzzles without a teacher answer).
+- B2: `scripts/kk_star.py --student unsloth/Llama-3.2-3B-Instruct`: the instruct student tries in the U_inst prompt
+  (`kk_eval`'s chat template string, stop at `<|eot_id|>`), no demonstration; the hint is appended to the puzzle as
+  in the base version. Smoke test (20 puzzles, 2 tries per round): 18 with a teacher answer, 1 solved alone, 16 with
+  the hint, 1 unsolved. The kept texts end in "In conclusion: 1. Henry is a knight. ..."; the checker reads that
+  format (its fallback: the lines after "conclusion:" up to the first blank line), at training and at test alike.
+- Launcher `scripts/59_phase1_kk.sh`: one job per GPU among 3 and 1, each waiting until its GPU is free of other
+  processes; B1 then B2, seed 123.
+
+**Read-out per baseline.** Test solve rate; the share of U_inst's gain recovered, (M − I0) / (U_inst − I0); and the
+gap decomposition on the training puzzles where possible: puzzles the method never solves (coverage), kept texts
+whose reasoning is wrong while the answer matches (spurious rationales, from §20 the main failure of the base
+student), and wrong teacher answers learned (277 of the 1,712).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

@@ -24,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from kk_build import load_tries  # noqa: E402
 from kk_pilot import INSTRUCTION, hint_text, parse_labels  # noqa: E402
-from kk_sft import STUDENT, STUDENT_TOKENIZER  # noqa: E402
+from kk_sft import DATE, STUDENT, STUDENT_TOKENIZER, user_turn  # noqa: E402
 
 # Xie et al. (2024), dataset/prompt.py, `demonstration_2char`, verbatim (its answer: both are knaves).
 DEMO_Q = ('A very special island is inhabited only by knights and knaves. Knights always tell the truth, and knaves '
@@ -60,6 +60,9 @@ def main() -> int:
     ap.add_argument("--max-tokens", type=int, default=2048)
     ap.add_argument("--gpu-mem", type=float, default=0.85)
     ap.add_argument("--limit", type=int, default=0, help="first N puzzles (smoke tests only)")
+    ap.add_argument("--student", default=STUDENT,
+                    help="m8 §25: unsloth/Llama-3.2-3B-Instruct; the instruct student tries in its chat format, as it "
+                         "is trained and scored (kk_sft.user_turn, kk_eval), with no demonstration")
     a = ap.parse_args()
     from vllm import LLM, SamplingParams
     pool = [json.loads(line) for line in open(a.pool)]
@@ -69,17 +72,29 @@ def main() -> int:
     teacher = {r["id"]: T[r["id"]][0]["labels"] for r in pool}
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    llm = LLM(model=STUDENT, tokenizer=STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=4096,
+    instruct = a.student != STUDENT
+    llm = LLM(model=a.student, tokenizer=STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=4096,
               gpu_memory_utilization=a.gpu_mem, seed=a.seed)
+    tok = llm.get_tokenizer()
+    eot = tok.convert_tokens_to_ids("<|eot_id|>")
+
+    def make_prompt(x, hint: bool) -> str:
+        labels = teacher[x["id"]] if hint else None
+        if not instruct:
+            return prompt(x["quiz"], x["names"], labels)
+        # the instruct student: the U_inst prompt (kk_eval), the hint appended to the puzzle as in the base prompt
+        quiz = x["quiz"] + (hint_text(x["names"], labels) if hint else "")
+        return tok.apply_chat_template([user_turn(quiz)], tokenize=False, add_generation_prompt=True, date_string=DATE)
+    stops = dict(stop_token_ids=[eot]) if instruct else dict(stop=["### Question", "\n### "])
     t0 = time.time()
 
     def attempt(items, hint: bool, n: int, name: str) -> dict:
         cache = out / f"round_{name}.json"
         if cache.exists():
             return json.loads(cache.read_text())
-        outs = llm.generate([prompt(x["quiz"], x["names"], teacher[x["id"]] if hint else None) for x in items],
+        outs = llm.generate([make_prompt(x, hint) for x in items],
                             SamplingParams(n=n, temperature=a.temperature, top_p=0.95, max_tokens=a.max_tokens,
-                                           seed=a.seed, stop=["### Question", "\n### "]))
+                                           seed=a.seed, **stops))
         found = {}
         for x, o in zip(items, outs):
             found[x["id"]] = next((c.text.strip() for c in o.outputs
@@ -107,7 +122,7 @@ def main() -> int:
     summary = {"pool": len(pool), "no_teacher_answer": len(pool) - len(usable), "kept": len(rows),
                "solved_own": src["own"], "solved_with_hint": src["hint"], "salvaged_with_hint": src["salvage"],
                "unsolved": len(unsolved), "kept_matching_truth": sum(r["correct"] for r in rows), "k": a.k,
-               "k_hint": a.k_hint, "k_salvage": a.k_salvage, "temperature": a.temperature, "seed": a.seed,
+               "k_hint": a.k_hint, "k_salvage": a.k_salvage, "temperature": a.temperature, "seed": a.seed, "student": a.student,
                "minutes": round((time.time() - t0) / 60, 1)}
     (out / "gen_summary.json").write_text(json.dumps({**summary, "unsolved_ids": unsolved}, indent=1))
     print(json.dumps(summary))
