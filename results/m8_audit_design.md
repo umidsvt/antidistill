@@ -1991,11 +1991,11 @@ checker rule (`forced_full.py`, scratch):
 - **Consequence for U_inst:** the student is trained on solution + forced line (setup's format). In 7.4% of seed
   123's MATH targets the last line contradicts the teacher's own correct answer. The checker reads the last boxed
   answer, so a student that learns to end this way loses those points. GSM8K: 6 of 4,963 (0.1%).
-- **Decision (the user, 2026-11-19 21:00): S2 targets end in the teacher's own answer.** When the teacher finished,
+- **Decision (the user, 2026-11-19 20:55): S2 targets end in the teacher's own answer.** When the teacher finished,
   its training target's final line is built from its own answer; when it was cut off, the forced line stays (its
   only answer). Format and every other part unchanged; no reference answers used; S1 stays exactly as the setup. The
   same rule defines the 32B teacher's released answer for Phase 1.
-- **Implementation** (`scripts/dg_own_final.py`, run 21:00–21:20, before any S2 training started). "Own answer" =
+- **Implementation** (`scripts/dg_own_final.py`; final files written 20:57:52, before the first S2 training started at 21:05:54). "Own answer" =
   every box on the line after `</think>` where the last box starts. Two refinements after looking at the output:
   - the first version took only the last box; 44 MATH cases with several answers ("the solutions are \boxed{81} and
     \boxed{256}") lost all but one, so every box on that line is kept, joined as the forced line joins them;
@@ -2015,6 +2015,25 @@ checker rule (`forced_full.py`, scratch):
   (forced right, own wrong). Seeds 124 and 125 are alike (`own_final.json`).
 - **The teacher script's checker join** is fixed the same way as the scorer's (the stored `correct` and
   `summary.json` of both teacher runs keep the old join; the table above has the setup's rule).
+
+**S1 MATH rescored with the fixed scorer (2026-11-19 21:06; GPUs 4 and 5).**
+
+| Seed | Old scorer | Fixed scorer | Finished, old → new | Replies identical | Wrong → right | Right → wrong |
+| --- | --- | --- | --- | --- | --- | --- |
+| 123 | 39.66% | 41.18% | 31.8% → 31.8% | 5,000 of 5,000 | 88 | 12 |
+| 124 | 39.98% | 41.08% | 27.0% → 25.9% | 149 of 5,000 | 489 | 434 |
+
+- **Seed 123** generated the same replies, so its change is the scorer alone. The 12 that became wrong are replies
+  where the student itself wrote a forced-style line with a wrong answer after its own correct one ("... solutions
+  is \boxed{-6}. **Final Answer** \[\boxed{B}\]"), learned from the field teacher's forced lines. The old join
+  split at the student's own line and read the answer before it; the setup's join splits at the scorer's cue and
+  reads the last box, B. The fixed scorer does what the setup does, so these count as wrong. This is the failure the
+  S2 decision above removes from the 32B teacher's targets.
+- **Seed 124** generated different replies in the rescore (149 identical), although the seed and the sampling
+  settings are the same; vLLM's seeded sampling is not reproducible across these two runs. Its change mixes the
+  scorer fix with resampling (the offline lower bound on the old replies was 41.40%). Every later score comes from
+  one run with the fixed scorer.
+- Old files kept as `test_1024_old_scorer.json`.
 
 ## Sources
 
