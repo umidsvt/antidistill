@@ -2066,6 +2066,9 @@ I0, seed-paired, 95% interval with t (2 df). Accuracy in %, the setup's checker 
   GSM8K/MATH setups leave nothing for an answers-only method to close; the puzzle testbed leaves about 53 points.
   The next step is the authors' decision (asked 2026-11-20).
 
+**Puzzle seed 123 (U_inst rerun, scored 2026-11-20 16:43).** 53.1% last answer / 53.0% first (finished 75.1%). Over
+3 seeds: I0 0.8%, U_inst 53.9%, **G = +53.1 points (95% CI 50.3 to 55.9)**; per seed +51.8, +53.6, +53.9.
+
 ## 25. Phase 1: answers-only baselines on the puzzle testbed, and a recipe check on MATH (2026-11-20; go-ahead from the user)
 
 **Decisions of the user (2026-11-20, ~15:50).**
@@ -2152,6 +2155,13 @@ choice is made on the test puzzles; a method with a free setting fixes it before
 gap decomposition on the training puzzles where possible: puzzles the method never solves (coverage), kept texts
 whose reasoning is wrong while the answer matches (spurious rationales, from §20 the main failure of the base
 student), and wrong teacher answers learned (277 of the 1,712).
+
+**B1 result (seed 123, 2026-11-20 17:11; `outputs/kk_phase1/students/B1_s123/`).** The student trained on the
+teacher's answers alone writes only a CONCLUSION (67 tokens on average; every answer readable) and solves **14.9%** of
+the test puzzles (7 people 14.4%, 8 people 15.4%), against I0 1.3% and U_inst 53.1% for seed 123: a recovered share of
+(14.9 − 1.3) / (53.1 − 1.3) = 26%. Guessing would solve under 1% (1 in 128 or 256 assignments); on average it labels
+66% of the people right. So the answers alone teach a reasoning-free shortcut that is far above chance, and above the
+base student's level-A floor (F_A 1.7%, §20). Seeds 124–125 come later with the other baselines.
 
 ## Sources
 

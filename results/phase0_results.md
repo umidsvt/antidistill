@@ -1,6 +1,6 @@
 # Phase 0: how much does an instruction-tuned student gain from the teacher's solutions?
 
-Status 2026-11-20. Design record: `results/m8_audit_design.md` §24. Numbers are recomputed from the stored
+Status 2026-11-20 (all seeds in). Design record: `results/m8_audit_design.md` §24. Numbers are recomputed from the stored
 per-problem files by `scripts/phase0_table.py` (output `outputs/phase0/table.json`).
 
 ## Question
@@ -22,19 +22,18 @@ a gap if U_inst − I0 ≥ 10 points and its 95% interval excludes 0 (rule agree
 | GSM8K | R1-Distill-Qwen-32B, 8,192 tokens | 96.6 | 82.3 | 79.2 | −3.1 (−3.8 to −2.4) |
 | MATH | R1-Distill-Qwen-7B, 1,024 tokens (field setup) | 63.1 | 48.6 | 40.8 | −7.8 (−10.4 to −5.2) |
 | MATH | R1-Distill-Qwen-32B, 8,192 tokens | 93.3 | 48.6 | 49.1 | +0.5 (−3.7 to +4.7) |
-| Puzzles (Knights and Knaves, 7–8 people) | R1-Distill-Qwen-32B, 8,192 tokens | 71.8 (training puzzles) | 0.8 | 54.3 (seeds 124, 125) | +53.8 (51.8 to 55.7) |
+| Puzzles (Knights and Knaves, 7–8 people) | R1-Distill-Qwen-32B, 8,192 tokens | 71.8 (training puzzles) | 0.8 | 53.9 | +53.1 (50.3 to 55.9) |
 
 Accuracy in % on the test set, mean over seeds 123–125. The gap is U_inst − I0, paired by seed: the mean of the
-per-seed differences ± t(0.975, n − 1) × SD / √n. The puzzle row has 2 seeds; seed 123's U_inst is training (see
-Caveats).
+per-seed differences ± t(0.975, n − 1) × SD / √n.
 
 - **GSM8K and MATH: no gap.** Training the student on the teacher's solutions lowers its accuracy on GSM8K with both
   teachers, and on MATH with the field's teacher. On MATH with the 32B teacher it changes nothing. No math setting
   meets the gap rule.
-- **Puzzles: a gap of about 54 points.** The untrained student solves almost no puzzles; trained on the teacher's
+- **Puzzles: a gap of about 53 points.** The untrained student solves almost no puzzles; trained on the teacher's
   solutions it solves 54%.
 - **Consequence:** with this student and these data sizes, the GSM8K/MATH setups leave nothing for an answers-only
-  method to recover. The puzzle testbed leaves about 54 points. The field's own setup (7B teacher, 1,024 tokens) does
+  method to recover. The puzzle testbed leaves about 53 points. The field's own setup (7B teacher, 1,024 tokens) does
   not just have a narrow gap for an instruction-tuned attacker: the gap is negative.
 
 ## Models
@@ -153,7 +152,7 @@ length in tokens.
 
 | Seed | I0 | U_inst | Gap |
 | --- | --- | --- | --- |
-| 123 | 1.3 (98.2%, 730) | training | — |
+| 123 | 1.3 (98.2%, 730) | 53.1 (75.1%, 4,561) | +51.8 |
 | 124 | 0.5 (96.6%, 861) | 54.1 (77.1%, 4,592) | +53.6 |
 | 125 | 0.6 (97.1%, 914) | 54.5 (77.2%, 4,556) | +53.9 |
 
@@ -186,9 +185,9 @@ off, and it is worse than I0 both where it finishes and where it is cut.
 
 ## Caveats
 
-- **Puzzle seed 123 (U_inst)** has not finished yet. Its first two training attempts on 2026-11-19 ran out of memory
-  when another process took most of GPU 3, and a launcher bug logged the job as done; the bug is fixed and the same
-  job was restarted on 2026-11-20 at 14:00.
+- **Puzzle seed 123 (U_inst)** was run a day after the others. Its first two training attempts on 2026-11-19 ran out
+  of memory when another process took most of GPU 3, and a launcher bug logged the job as done; the bug was fixed and
+  the same job rerun on 2026-11-20 (53.1%).
 - **Scorer fix (2026-11-19).** Our vLLM scorer first joined reply and forced answer with one newline too few. For
   replies containing `</think>` the checker then read only the forced answer. It was fixed before the 32B-teacher
   students were scored. The 7B-teacher MATH students of seeds 123 and 124 were rescored. Seed 123's replies were

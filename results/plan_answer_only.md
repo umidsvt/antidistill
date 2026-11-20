@@ -18,12 +18,12 @@ Decided at the 2026-11-18 meeting:
 **Phase 0 result and decisions of 2026-11-20** (m8 §24–25; write-up `results/phase0_results.md`):
 - With Llama-3.2-3B-Instruct, training on the teacher's solutions does not beat the untrained student on GSM8K or
   MATH with either teacher (gaps −3.6, −3.1, −7.8, +0.5 points). On the puzzles it takes the student from 0.8% to
-  54.3% (+53.8). No math setting passes the gap rule (≥ 10 points, CI > 0).
+  53.9% (+53.1, 95% CI 50.3 to 55.9). No math setting passes the gap rule (≥ 10 points, CI > 0).
 - **The puzzle testbed is the main setting.** GSM8K/MATH are reported as "no gap for an instruct attacker" (main
   text briefly, appendix in full). The plan's risk 1 below happened.
 - One recipe check on MATH (full fine-tuning, seed 123; m8 §25.1) is running.
-- Phase 1 runs on the puzzles (m8 §25.2): B1 answers only and B2 self-training with hints are running; RL (B3, B4)
-  and the controls follow.
+- Phase 1 runs on the puzzles (m8 §25.2): B1 answers only reached 14.9% on seed 123 (26% of the gap, with no
+  reasoning at all); B2 self-training with hints is running; RL (B3, B4) and the controls follow.
 - Paper: new framing draft `icml2027_answers/` in the paper repo.
 - GPUs until 2026-11-22: only 0, 1 and 3 (4–7 for jafar, 2 for the user's other project).
 
@@ -154,7 +154,7 @@ that pass Phase 0.
 
 1. ~~Close ADS~~ (done 2026-11-19).
 2. ~~Literature pass~~ (done: `results/lit_answer_only.md`).
-3. ~~Phase 0~~ (done 2026-11-20: m8 §24, `results/phase0_results.md`). Puzzle U_inst seed 123 rerun is finishing.
+3. ~~Phase 0~~ (done 2026-11-20: m8 §24, `results/phase0_results.md`). Puzzle U_inst seed 123 rerun done (53.1%).
 4. MATH recipe check (m8 §25.1): running; read-out into m8, `results/phase0_results.md` and the paper.
 5. Phase 1 on the puzzles (m8 §25.2, approved 2026-11-20): B1 and B2 running; then RL baselines B3/B4 (adapt
    `dg_rl_base.py` to the puzzles, smoke test, fix settings in m8), the two controls, and the gap decomposition.

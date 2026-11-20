@@ -5,7 +5,7 @@
 **Current direction (meetings of 2026-11-18 and 2026-11-20).** The main aim is an **answers-only fine-tuning method**:
 with only the teacher's released answers, bring an instruction-tuned student (Llama-3.2-3B-Instruct; Qwen2.5-3B-Instruct
 second) as close as possible to the same student trained on the teacher's solutions (U). Phase 0 (m8 §24,
-`results/phase0_results.md`) found no gap on GSM8K/MATH for this student with either teacher, and a 54-point gap on
+`results/phase0_results.md`) found no gap on GSM8K/MATH for this student with either teacher, and a 53-point gap on
 the Knights-and-Knaves puzzles, which are now the **main testbed**. Running: a MATH recipe check (full fine-tuning,
 m8 §25.1) and the Phase 1 answers-only baselines on the puzzles (m8 §25.2). Plan and next steps:
 `results/plan_answer_only.md`. Paper draft: `icml2027_answers/` in the paper repo. GPUs: see rule 4 and the user's
