@@ -2353,6 +2353,28 @@ Code: `scripts/kk_decomp.py` (D1, D4, D5 and the D3 tables), `scripts/kk_judge.p
 - **Paper:** D1, D2 and D5 carry the argument of Section 4 (the student cannot reach the answers; hinted reasoning is
   spurious; answers teach surface statistics) and go into the paper; D3 and D4 stay here.
 
+## 27. Can the untrained student verify an answer? (feasibility check for a verify-then-solve method, 2026-11-21; go-ahead from the user)
+
+**Why.** The candidate Phase 2 method ("verify the teacher's answer first, then learn to solve") rests on one premise:
+checking a given assignment is within the untrained student's reach even though finding one is not (§26 D1: it
+reaches the teacher's answer on 117 of 1,712 puzzles). If the student cannot tell right from wrong assignments
+either, the method fails at its first step.
+
+**Check** (`scripts/kk_verify_probe.py`, GPU 0, seed 123). Training puzzles with the teacher's answer. Items:
+- 300 random puzzles where the teacher is right: (i) the teacher's answer; (ii) the same answer with one random
+  person flipped (always wrong, since every puzzle has exactly one solution);
+- all 277 puzzles where the teacher is wrong: the teacher's answer.
+
+The untrained instruct student gets the puzzle, the assignment and an instruction to check every person's statement
+against it (a knight's statement must be true, a knave's false) and to end with "VERDICT: CONSISTENT" or "VERDICT:
+INCONSISTENT"; 4 replies per item, temperature 0.6, 2,048 tokens, its chat template with the fixed date line. Ground
+truth: the assignment is consistent iff it equals the solution (checked by evaluating the statements).
+
+**Read-out.** Per item type: share of replies with the right verdict, share of items whose 4-reply majority is right,
+share with no verdict. Interpretation after the numbers: if the student accepts right answers and rejects wrong ones
+well above chance (both types of wrong), verification is a usable first step; if it is near chance, the method needs a
+different first step.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

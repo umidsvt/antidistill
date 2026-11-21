@@ -74,3 +74,27 @@ OLR is the baseline for this angle.
 
 Not novel on its own: answer-conditioned OPSD, answer-hinted GRPO, or answer-likelihood rewards. These are
 baselines.
+
+## 6. Verify-then-solve (search of 2026-11-21, for the Phase 2 candidate of m8 §27)
+
+The idea "teach the student to verify answers first, then to solve" is published; it is not novel on its own.
+- **Learning to Self-Verify Makes Language Models Better Reasoners** (arXiv 2602.07594): training to self-verify as
+  the initial policy before training to generate, or alternating the two, improves generation (math, Qwen2.5). This is
+  the closest work: verify-first, then generate. Its verification target is the model's own answer under a
+  ground-truth reward; ours would be an imperfect teacher's answer, with no ground truth.
+- **Incentivizing LLMs to Self-Verify Their Answers** (arXiv 2506.01369) and **RISE / Trust, But Verify** (arXiv
+  2505.13445): RL that trains solving and verifying together.
+- **VeriThinker** (arXiv 2505.17941): verification-only fine-tuning, for shorter reasoning.
+- **Verification-First prompting** (arXiv 2511.21734): verify a given (even random) answer, then answer; inference only.
+- **Reliable Self-Improvement Training by Verifying Reasoning, Not Just Answers** (arXiv 2603.21558): self-training
+  that filters rationales by checking the reasoning, the spurious-rationale problem of STaR.
+- **RAVR, Reference-Answer-guided Variational Reasoning**: answer-conditioned reasoning as a posterior, regularized
+  toward question-only reasoning; reports valid reasoning given the answer on over half of otherwise unlearnable
+  questions. Close to answer-anchored self-distillation (§2).
+- **SCRL** (arXiv 2605.22074): curriculum RL on verifiable subproblems built from reference reasoning chains (needs
+  chains, which our attacker does not have).
+- Theory: Foster and Krishnamurthy, autocurriculum for learning from final answers (arXiv 2603.18325).
+
+**Consequence:** verify-then-solve can be a component or baseline, not the contribution. What stays specific to our
+setting: answers from an imperfect teacher instead of ground truth, an attacker that never sees reasoning, and the
+student trained on the teacher's solutions as the target.
