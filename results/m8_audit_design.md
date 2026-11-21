@@ -2232,6 +2232,30 @@ Each student is scored with `kk_eval.py` as before. Seed 123 only for C1, C2 and
 right. B5 from B1's adapter (2 steps): replies 67 tokens, exact-agreement reward 0.07 and 0.12, partial 0.62–0.65,
 so the reward fires from the start, unlike B3. Launched with `scripts/61_phase1_more.sh` on GPUs 1, 3, 0.
 
+**Results (2026-11-21 10:22–11:10; `outputs/kk_phase1/`).**
+
+| Student | Seed(s) | Solve rate (%) | Recovered share |
+| --- | --- | --- | --- |
+| B1, teacher's answers alone | 123 / 124 / 125 | 14.9 / 18.3 / 17.5, mean **16.9** | 30% (95% CI 21 to 39) |
+| B5, RL from B1 (exact agreement) | 123 | **22.7** | 41% |
+| C2, B1's recipe on the reference answers | 123 | 8.5 | 14% |
+| C1, B1's recipe on the student's own majority answers | 123 | 1.6 | 1% |
+
+- **B1, 3 seeds:** B1 − I0 = +16.1 points (10.6 to 21.6); U_inst − B1 = 37.0 (34.0 to 40.0). Every student answers in
+  about 67 tokens with no reasoning; all answers are readable.
+- **B5:** 107 steps in 45 min. The exact-agreement reward rose 0.106 → 0.204 → 0.266 (steps 1–10, 49–58, 98–107),
+  agreement with the reference 0.091 → 0.253, replies stayed at 67 tokens. Not converged after one epoch. RL from
+  B1 adds 7.8 points over B1 on seed 123.
+- **C1:** the untrained student's tries are readable 42.8% of the time and right 0.89% (2,000 puzzles × 8,
+  `own_tries_s123/summary.json`); its majority answer exists for 1,625 of the 1,712 puzzles (87 have no readable try,
+  not trained on) and is right on 36. Trained on these, the student stays at I0 (1.6%). So the teacher's answers
+  carry B1's gain: +13.3 points over the student's own answers on seed 123.
+- **C2, unexpected:** the reference answers train a weaker student (8.5%) than the teacher's (14.9%, same seed),
+  although the two sets differ only on the 277 puzzles where the teacher is wrong. One seed; B1's seeds span 14.9 to
+  18.3, so 8.5 is outside that range, but C2 needs seeds 124–125 before it is interpreted. A possible reason, not
+  tested: the teacher's wrong answers may follow surface patterns of the puzzles that a reasoning-free student can
+  pick up, while the true answers of those puzzles do not.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

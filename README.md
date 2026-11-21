@@ -49,7 +49,7 @@ quarter of U − U₀ with a 95% interval over 3 seeds that excludes 0 (m8 §11,
 | --- | --- | --- |
 | Phase 0: does Llama-3.2-3B-Instruct gain from the teacher's solutions? (3 seeds) | GSM8K: −3.6 points (field teacher R1-Distill-Qwen-7B, 1,024 tokens), −3.1 (R1-Distill-Qwen-32B, 8,192). MATH: −7.8 and +0.5 (−3.7 to +4.7). **No gap on GSM8K/MATH.** Puzzles: 0.8% → 53.9%, **+53.1 points (50.3 to 55.9)** | §24 |
 | MATH recipe check (full fine-tuning instead of LoRA, seed 123) | 52.9% vs 49.1% untrained (+3.8; LoRA 48.3%); still loops on a third of problems. **Conclusion unchanged** | §25.1 |
-| Phase 1 on the puzzles: answers-only baselines | B1 (SFT on the teacher's answers alone, no reasoning): **14.9%** on seed 123, 26% of the gap. B2 (self-training with hints): 2.6%, only 95 of 1,712 puzzles solved without the hint. RL from the untrained student (GRPO, 1 epoch): B3 1.0%, B4 0.9%, no gain | §25.2 |
+| Phase 1 on the puzzles: answers-only baselines | B1 (SFT on the teacher's answers alone, no reasoning): **14.9%** on seed 123, 26% of the gap. B2 (self-training with hints): 2.6%, only 95 of 1,712 puzzles solved without the hint. RL from the untrained student (GRPO, 1 epoch): B3 1.0%, B4 0.9%, no gain. B1 over 3 seeds: **16.9%** (30% of the gap). **RL from B1 (B5): 22.7%** (seed 123, 41%). Controls for B1: own majority answers 1.6%, reference answers 8.5% (seed 123) | §25.2 |
 
 **Answer floor and attacker ladder, base student (2026-11-15; now the paper's appendix).**
 

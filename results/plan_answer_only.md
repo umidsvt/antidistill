@@ -24,7 +24,8 @@ Decided at the 2026-11-18 meeting:
 - Recipe check on MATH (full fine-tuning, seed 123; m8 §25.1): 52.9% vs 49.1% untrained (+3.8). Conclusion unchanged.
 - Phase 1 runs on the puzzles (m8 §25.2): B1 answers only reached 14.9% on seed 123 (26% of the gap, with no
   reasoning at all); B2 self-training with hints 2.6% (1,617 of 1,712 kept texts from hint rounds); RL from the untrained student
-  (B3 exact 1.0%, B4 partial credit 0.9%) learned nothing in one epoch; controls next.
+  (B3 exact 1.0%, B4 partial credit 0.9%) learned nothing in one epoch. B1 over 3 seeds 16.9% (30% of the gap);
+  RL from B1 (B5) 22.7% on seed 123 (41%); controls: own majority answers 1.6%, reference answers 8.5% (m8 §25.3).
 - Paper: new framing draft `icml2027_answers/` in the paper repo.
 - GPUs until 2026-11-22: only 0, 1 and 3 (4–7 for jafar, 2 for the user's other project).
 
