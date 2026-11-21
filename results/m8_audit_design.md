@@ -2112,6 +2112,14 @@ step, before the optimizer states exist; from the second step on, fp32 weights, 
 now runs two steps (48 longest texts: 51 s per step, no slowdown from paging). Relaunched 16:03. Log of the failed
 run: `logs/phase1/fullft_math_s123_oom1.log`.
 
+**Result (2026-11-21 00:24; `outputs/phase0/S2full/math_s123/`).** Training 216 min, average loss 0.294 (LoRA 0.303),
+final loss about 0.19. Test accuracy **52.94%** against I0 49.10% and the LoRA student 48.34%: **G = +3.8 points**
+(one seed), +4.6 over LoRA (749 problems right only with full fine-tuning, 519 only with LoRA). Finished 63.7% (LoRA
+62.4%): on finished replies 72.2% against I0's 64.7% on the same problems; on the 1,813 cut replies 19.1% against
+21.7%, and 93% of them end in a repetition loop. Full fine-tuning learns more from the solutions, but the student
+still loops on a third of the problems, and the gap stays far below the 10-point rule. The §24 conclusion (no usable
+gap on MATH for the instruct student) does not depend on the LoRA recipe.
+
 ### 25.2 Phase 1 on the puzzles: answers-only baselines with the instruction-tuned student
 
 **Attacker.** Llama-3.2-3B-Instruct with the teacher's released answers: for each of the 2,000 step-2 training
@@ -2188,6 +2196,13 @@ solves **2.6%** of the test puzzles (finished 98.4%, 714 tokens), against I0 1.3
 below B1's 26%. As with the base student (§20, F_A 1.7%), almost every kept text comes from a hint round, where the
 student states the given answer; training on them teaches little. Self-training with hints is the weakest baseline
 so far, and the answers-only shortcut of B1 the strongest.
+
+**B3 and B4 results (seed 123, 2026-11-21 05:17 and 05:47; `outputs/kk_phase1/students/B{3,4}_s123/`).** Both ran
+107 steps (B4 689 min, B3 715 min). The rewards hardly moved: B4's partial-credit reward 0.084 → 0.096 → 0.120 (steps
+1–10, 46–55, 98–107), exact agreement 0.002 throughout; B3's exact reward 0.002 → 0.003 → 0.005. Replies stayed about
+1,200–1,300 tokens, 9–13% cut at 4,096. Test: **B4 0.9%, B3 1.0%** (I0 1.3%): no gain. Most replies never reach a
+readable CONCLUSION (an unreadable answer scores 0), so even partial credit gives almost no signal; with learning rate
+5e-6 on LoRA, one epoch did not change that. RL from the untrained student, as configured, recovers nothing.
 
 ## Sources
 

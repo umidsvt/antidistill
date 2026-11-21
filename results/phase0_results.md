@@ -194,8 +194,9 @@ off, and it is worse than I0 both where it finishes and where it is cut.
   identical in the rescore, so its change (39.66% → 41.18%) is the fix alone. Seed 124's replies came out
   different despite the same seed (39.98% → 41.08%); every number in this file is from one run with the fixed scorer.
 - **One sample per problem** at temperature 0.6, for teachers and students alike, as in the setup.
-- **Recipe untuned.** The setup's LoRA recipe was used for every student; no hyperparameter was tuned for the
-  instruction-tuned student or for long solutions.
+- **Recipe.** The setup's LoRA recipe was used for every student. A check with full fine-tuning (m8 §25.1, 32B
+  teacher, MATH, seed 123) gives 52.9% against the LoRA student's 48.3% and I0's 49.1%: a gap of +3.8 points, still
+  far below 10. It still loops: 36% of its replies run to 8,192 tokens, 93% of those in a loop.
 
 ## Files
 
