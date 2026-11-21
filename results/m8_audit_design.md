@@ -2339,6 +2339,20 @@ Code: `scripts/kk_decomp.py` (D1, D4, D5 and the D3 tables), `scripts/kk_judge.p
   7.8% on the reference answers). B1 s123 labels 66.1% of people right and solves 14.9%: per person about the same,
   with more fully right puzzles.
 
+**Results D2, D3 (2026-11-21 16:41–16:50; `outputs/kk_phase1/decomp/judge_s123/`, `train_preds/`).**
+- **D2, the teacher as judge** (one judgment per text; VALID / INVALID / no verdict): B2 texts found without the hint
+  54 / 40 / 1 of 95 (43% invalid); B2 hint-round texts 63 / 135 / 2 of 200 (**68% invalid**); calibration: correct
+  teacher solutions 89 / 11 / 0 of 100 (11% invalid), wrong teacher solutions 46 / 52 / 2 of 100 (52%). The judge is
+  noisy (it passes 46% of solutions that end in a wrong answer), but it rejects the hinted texts more often than even
+  the teacher's wrong solutions: most of what B2 trains on is reasoning that does not support its answer.
+- **D3, the teacher's errors (B1 and B5 on their own training puzzles, one try each):** B1 reproduces the teacher's
+  answer on 306 of the 1,435 puzzles where it is right (21%; its test rate is 16.9%), and on the 277 where it is wrong
+  gives the teacher's wrong answer 35 times, the truth 20, neither 222. B5: 465 of 1,435 (32%); on the 277, teacher
+  42, truth 33, neither 202. The answers-only students hardly fit their training answers, so the teacher's wrong
+  answers are not what limits them. U_inst on the training puzzles: running.
+- **Paper:** D1, D2 and D5 carry the argument of Section 4 (the student cannot reach the answers; hinted reasoning is
+  spurious; answers teach surface statistics) and go into the paper; D3 and D4 stay here.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
