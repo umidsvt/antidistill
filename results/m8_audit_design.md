@@ -2295,6 +2295,50 @@ student than the teacher's on every seed (§25.3).
   answers so far. Self-training with hints (2.6%) and RL from the untrained student (about 1%) fail because the
   student almost never reaches the answer by reasoning (95 of 1,712 puzzles in 8 tries).
 
+## 26. Phase 1: where the gap lies (gap breakdown, 2026-11-21; go-ahead from the user)
+
+**Why.** Phase 1's best answers-only student (B5, 25.5%) recovers 47% of the teacher's gain without writing any
+reasoning; methods that try to reason (B2, B3, B4) recover almost nothing. Before choosing the Phase 2 method, measure
+what the remaining gap is made of. Diagnostic only: reference answers are used here, never for training. Seed 123.
+
+**Measurements.**
+- **D1, reaching the answer (coverage and format).** From the untrained student's 8 tries per training puzzle
+  (`own_tries_s123`) and its test replies (I0, 3 seeds): the share of readable answers; why the others are unreadable
+  (no CONCLUSION, a person labeled twice or not at all, cut at the token limit); the share of people labeled
+  correctly in readable answers (chance 50%); puzzles reached at least once.
+- **D2, spurious rationales.** The teacher (R1-Distill-Qwen-32B, the stand-in for a strong grader; diagnostic only)
+  judges whether a kept B2 text derives its answer from the statements or assumes it: all 95 texts the student found
+  alone, 200 random hint-round texts, and as calibration 100 random correct and 100 random wrong teacher solutions
+  (`scripts/kk_judge.py`, 2 GPUs, one judgment each).
+- **D3, the teacher's errors.** B1, B5 and U_inst (seed 123) answer every training puzzle once (`kk_eval.py` on the
+  training pool). On the 277 puzzles with a wrong teacher answer: how often each reproduces the teacher's answer, the
+  true answer, or neither; on the 1,435 others, how often it is right (fit to the training answers).
+- **D4, where U_inst beats B5 on the test puzzles.** Per-puzzle cross-table (seed 123), by puzzle size, by U_inst's
+  reply length and finishing.
+- **D5, what the shortcut uses.** A logistic-regression predictor of each person's label from surface counts of the
+  puzzle (how often the person is called knight or knave by others, by themselves, under negation, and the operators
+  of their own statement), fit on the training puzzles with the teacher's answers; its test solve rate (all people
+  right) next to B1's. If comparable, B1's shortcut is largely such surface statistics.
+
+Code: `scripts/kk_decomp.py` (D1, D4, D5 and the D3 tables), `scripts/kk_judge.py` (D2); results in
+`outputs/kk_phase1/decomp/` and here.
+
+**Results D1, D4, D5 (2026-11-21 15:50; `outputs/kk_phase1/decomp/breakdown.json`).**
+- **D1, the untrained student mostly cannot produce an answer, and its answers are guesses.** Test replies: readable
+  46.7 / 45.3 / 40.7% (s123–125); of the rest, 497–554 per 1,000 write a CONCLUSION that does not label every person
+  exactly once, 18–34 are cut at the limit, 6–18 have no CONCLUSION. Readable answers label 51.9–53.5% of the people
+  right (chance 50%). On the training puzzles (8 tries each): 42.8% readable, 0.9% right, 52.2% of people right; the
+  teacher's answer is reached at least once on 117 of the 1,712 puzzles (6.8%). So the reward of B2–B4 is zero for
+  about 57% of replies by format alone, and the rest are near chance.
+- **D4, U_inst against B5 (test, seed 123):** both right 147, U_inst only 384, B5 only 80, neither 389 (by size, 7
+  people: 78 / 219 / 43 / 160; 8 people: 69 / 165 / 37 / 229). U_inst is right on 70.6% of the 751 replies it finishes
+  and on 0.4% of the 249 cut at 8,192 tokens. B5's wrong answers label 60.8% of the people right.
+- **D5, B1's shortcut is mostly surface statistics.** A logistic regression on 31 surface counts per person (how
+  often others call the person a knight or knave, under which operator and negation, the person's own statement type,
+  N) labels 67.7% of the test people right and solves 7.9% of the puzzles when fit on the teacher's answers (67.6% and
+  7.8% on the reference answers). B1 s123 labels 66.1% of people right and solves 14.9%: per person about the same,
+  with more fully right puzzles.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
