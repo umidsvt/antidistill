@@ -2228,7 +2228,7 @@ readable and 15% right, gives a reward that fires from the first step.
 
 Each student is scored with `kk_eval.py` as before. Seed 123 only for C1, C2 and B5 at this stage.
 
-**Smoke tests and launch (2026-11-21 ~10:20).** `kk_sample.py` (20 puzzles × 2 tries): 40% of tries readable, 10%
+**Smoke tests and launch (2026-11-21, launched 09:55).** `kk_sample.py` (20 puzzles × 2 tries): 40% of tries readable, 10%
 right. B5 from B1's adapter (2 steps): replies 67 tokens, exact-agreement reward 0.07 and 0.12, partial 0.62–0.65,
 so the reward fires from the start, unlike B3. Launched with `scripts/61_phase1_more.sh` on GPUs 1, 3, 0.
 
