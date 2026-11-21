@@ -2349,7 +2349,11 @@ Code: `scripts/kk_decomp.py` (D1, D4, D5 and the D3 tables), `scripts/kk_judge.p
   answer on 306 of the 1,435 puzzles where it is right (21%; its test rate is 16.9%), and on the 277 where it is wrong
   gives the teacher's wrong answer 35 times, the truth 20, neither 222. B5: 465 of 1,435 (32%); on the 277, teacher
   42, truth 33, neither 202. The answers-only students hardly fit their training answers, so the teacher's wrong
-  answers are not what limits them. U_inst on the training puzzles: running.
+  answers are not what limits them. **U_inst** (trained on all 2,000 teacher solutions, right or wrong): right on 887
+  of the 1,435 puzzles where the teacher is right (62%); on the 277 where it is wrong, the teacher's wrong answer 36,
+  the truth 77 (28%), neither 67, unreadable 97; right on 100 of the 288 the teacher left unanswered (35%). Trained on
+  the teacher's reasoning, the student reaches the true answer more often than it copies the teacher's error, also
+  where that reasoning went wrong (2026-11-21 17:59).
 - **Paper:** D1, D2 and D5 carry the argument of Section 4 (the student cannot reach the answers; hinted reasoning is
   spurious; answers teach surface statistics) and go into the paper; D3 and D4 stay here.
 
