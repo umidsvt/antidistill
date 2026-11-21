@@ -54,6 +54,8 @@ def main() -> int:
     ap.add_argument("--vllm-mem", type=float, default=0.35)
     ap.add_argument("--save-every", type=int, default=50)
     ap.add_argument("--limit", type=int, default=0, help="first N prompts (smoke tests only)")
+    ap.add_argument("--init-adapter", default="", help="§25.3 (B5): start from this trained LoRA adapter (e.g. B1's) "
+                    "instead of a new one; the KL reference stays the untrained student (adapter off)")
     a = ap.parse_args()
 
     import torch
@@ -116,6 +118,10 @@ def main() -> int:
                                                  attn_implementation="flash_attention_2")
     lora = LoraConfig(r=128, lora_alpha=128, lora_dropout=0.0, bias="none", task_type="CAUSAL_LM",
                       target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"])
+    if a.init_adapter:
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, a.init_adapter, is_trainable=True)
+        lora = None
     gen_per_step = a.num_generations * a.prompts_per_step
     args = GRPOConfig(
         output_dir=str(out / "trainer"), seed=a.seed, bf16=True,
@@ -147,7 +153,7 @@ def main() -> int:
     meta = {"method": f"GRPO, reward {a.reward}", "student": a.student, "seed": a.seed, "prompts": len(data),
             "steps": trainer.state.global_step, "lr": a.lr, "beta": a.beta, "num_generations": a.num_generations,
             "prompts_per_step": a.prompts_per_step, "epochs": a.epochs, "max_completion": a.max_completion,
-            "temperature": a.temperature, "loss_type": "dr_grpo", "train_minutes": round((time.time() - t0) / 60, 1),
+            "temperature": a.temperature, "loss_type": "dr_grpo", "init_adapter": a.init_adapter, "train_minutes": round((time.time() - t0) / 60, 1),
             "peak_memory_gib": round(torch.cuda.max_memory_allocated() / 2**30, 1)}
     (out / "train_meta.json").write_text(json.dumps(meta, indent=1))
     print(json.dumps(meta), flush=True)

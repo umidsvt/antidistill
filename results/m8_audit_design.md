@@ -2204,6 +2204,34 @@ so far, and the answers-only shortcut of B1 the strongest.
 readable CONCLUSION (an unreadable answer scores 0), so even partial credit gives almost no signal; with learning rate
 5e-6 on LoRA, one epoch did not change that. RL from the untrained student, as configured, recovers nothing.
 
+### 25.3 Phase 1, continued: B1 on more seeds, its two controls, and RL from B1 (2026-11-21; go-ahead from the user)
+
+**Why.** B1 (SFT on the teacher's answers alone) is the strongest baseline (14.9%, seed 123); self-training with hints
+(B2, 2.6%) and RL from the untrained student (B3 1.0%, B4 0.9%) recover almost nothing. RL failed because the untrained
+student rarely writes a readable answer, so its reward is almost always 0. Starting RL from B1, whose answers are all
+readable and 15% right, gives a reward that fires from the first step.
+
+**Runs** (launcher `scripts/61_phase1_more.sh`, GPUs 0, 1, 3):
+1. **B1, seeds 124 and 125**: the B1 recipe unchanged.
+2. **C1, the student's own majority answers (seed 123)**: the untrained instruct student tries every training puzzle
+   8 times (U_inst prompt, temperature 0.8, 2,048 tokens, as B2's own round; `scripts/kk_sample.py`); each of the
+   1,712 puzzles B1 trains on gets the most common readable answer among the 8 (ties: the first seen); puzzles with no
+   readable try are reported and not trained on. Then B1's recipe on these answers. It shows what the teacher's
+   answers add over the student's own.
+3. **C2, the reference answers (seed 123)**: B1's recipe on the true answers of the same 1,712 puzzles. It shows what
+   the teacher's 277 wrong answers cost; no attacker has these answers.
+4. **B5, RL from B1 (seed 123)**: B3's settings (§25.2: GRPO, exact-agreement reward with the teacher's answer, Dr.
+   GRPO loss, lr 5e-6, 16 × 8 replies per step, 4,096 tokens, one epoch, 107 steps), starting from B1 s123's adapter
+   instead of a new one. The KL term's reference is the untrained student (TRL's reference for a PEFT model is the
+   base with the adapter off); at 1e-4 its weight is small. Exact agreement, not partial credit, because B1's answers
+   are always readable and the test counts only complete answers.
+
+Each student is scored with `kk_eval.py` as before. Seed 123 only for C1, C2 and B5 at this stage.
+
+**Smoke tests and launch (2026-11-21 ~10:20).** `kk_sample.py` (20 puzzles × 2 tries): 40% of tries readable, 10%
+right. B5 from B1's adapter (2 steps): replies 67 tokens, exact-agreement reward 0.07 and 0.12, partial 0.62–0.65,
+so the reward fires from the start, unlike B3. Launched with `scripts/61_phase1_more.sh` on GPUs 1, 3, 0.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
