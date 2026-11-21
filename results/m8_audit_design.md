@@ -2256,6 +2256,20 @@ so the reward fires from the start, unlike B3. Launched with `scripts/61_phase1_
   tested: the teacher's wrong answers may follow surface patterns of the puzzles that a reasoning-free student can
   pick up, while the true answers of those puzzles do not.
 
+### 25.4 Phase 1: seeds 124–125 for B5 and the controls; B5 for three epochs (2026-11-21; go-ahead from the user)
+
+**Runs** (launcher `scripts/62_phase1_seeds.sh`, GPUs 0, 1, 3):
+1. **B5, seeds 124 and 125**: §25.3's settings, each from the B1 adapter of the same seed.
+2. **C2, seeds 124 and 125**: B1's recipe on `C2_reference.jsonl`, training seed 124 or 125.
+3. **C1, seeds 124 and 125**: B1's recipe on `C1_majority_s123.jsonl` (the majority answers from the seed-123 tries),
+   training seed 124 or 125. As for B1 and C2, the training set is fixed and only the training seed changes.
+4. **B5 for three epochs (seed 123, `B5e3_s123`)**: §25.3's settings with `--epochs 3` (321 steps, constant learning
+   rate), because the reward was still rising at the end of one epoch. Adapters every 25 steps. A development run on
+   seed 123: if it helps, the longer schedule is then run on seeds 124–125 before any claim.
+
+Read-out: 3-seed means with 95% intervals for B5, C1 and C2; for C2, whether the reference answers train a weaker
+student than the teacher's on every seed (§25.3).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
