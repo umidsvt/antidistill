@@ -25,7 +25,9 @@ Decided at the 2026-11-18 meeting:
 - Phase 1 runs on the puzzles (m8 §25.2): B1 answers only reached 14.9% on seed 123 (26% of the gap, with no
   reasoning at all); B2 self-training with hints 2.6% (1,617 of 1,712 kept texts from hint rounds); RL from the untrained student
   (B3 exact 1.0%, B4 partial credit 0.9%) learned nothing in one epoch. B1 over 3 seeds 16.9% (30% of the gap);
-  RL from B1 (B5) 22.7% on seed 123 (41%); controls: own majority answers 1.6%, reference answers 8.5% (m8 §25.3).
+  RL from B1 (B5) 25.5% over 3 seeds (47% of the gap, +8.6 over B1); controls: own majority answers 1.5%,
+  reference answers 10.5% (unstable across seeds) (m8 §25.3–25.4). Phase 1 baselines done; next the gap decomposition
+  and Phase 2.
 - Paper: new framing draft `icml2027_answers/` in the paper repo.
 - GPUs until 2026-11-22: only 0, 1 and 3 (4–7 for jafar, 2 for the user's other project).
 

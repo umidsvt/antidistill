@@ -2270,6 +2270,31 @@ so the reward fires from the start, unlike B3. Launched with `scripts/61_phase1_
 Read-out: 3-seed means with 95% intervals for B5, C1 and C2; for C2, whether the reference answers train a weaker
 student than the teacher's on every seed (§25.3).
 
+**Results (2026-11-21 12:11–13:40; `outputs/kk_phase1/students/`).** 3-seed means, 95% intervals with t (2 df).
+
+| Student | s123 / s124 / s125 (%) | Mean | Minus I0 | Recovered share | Minus B1 |
+| --- | --- | --- | --- | --- | --- |
+| B1, teacher's answers alone | 14.9 / 18.3 / 17.5 | 16.9 | +16.1 (10.6 to 21.6) | 30% (21 to 39) | — |
+| **B5, RL from B1** | 22.7 / 30.0 / 23.8 | **25.5** | +24.7 (14.1 to 35.3) | **47% (28 to 65)** | **+8.6 (1.7 to 15.5)** |
+| C2, reference answers | 8.5 / 19.2 / 3.8 | 10.5 | +9.7 (−10.3 to 29.7) | 18% (−19 to 55) | −6.4 (−24.5 to 11.7) |
+| C1, own majority answers | 1.6 / 0.8 / 2.2 | 1.5 | +0.7 (−1.1 to 2.6) | 1% | −15.4 (−20.6 to −10.1) |
+
+- **B5 is the strongest baseline**: RL from B1 adds 8.6 points over B1, with an interval above 0. Its students answer
+  in 67–100 tokens without reasoning.
+- **The teacher's answers carry the gain**: with the student's own majority answers the recipe stays at I0 on every
+  seed (C1 − B1 = −15.4, interval below 0).
+- **C2 does not confirm §25.3's unexpected result**: the reference-answer students vary from 3.8% to 19.2% across
+  seeds; C2 − B1 = −6.4 with an interval from −24.5 to +11.7. The one-seed difference was within the seed noise of
+  this recipe; the "surface patterns" explanation in §25.3 is withdrawn. Answers-only SFT on the reference answers
+  is much less stable across seeds than on the teacher's answers (SD 7.7 against 1.8 points); not investigated.
+- **Three epochs of RL (B5e3, seed 123): 23.6%** against 22.7% after one. The exact-agreement reward plateaued at
+  0.28–0.31 after about 100 steps (0.094 → 0.277 → 0.310 → 0.284, steps 1–10, 101–110, 201–210, 312–321). The
+  one-epoch schedule is kept.
+- **Phase 1 conclusion:** the best answers-only student recovers 47% of the teacher's gain (25.5% against U_inst
+  53.9%) without writing any reasoning; the remaining 28 points are what the teacher's reasoning teaches beyond its
+  answers so far. Self-training with hints (2.6%) and RL from the untrained student (about 1%) fail because the
+  student almost never reaches the answer by reasoning (95 of 1,712 puzzles in 8 tries).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
