@@ -2375,6 +2375,15 @@ share with no verdict. Interpretation after the numbers: if the student accepts 
 well above chance (both types of wrong), verification is a usable first step; if it is near chance, the method needs a
 different first step.
 
+**Result (2026-11-21 16:59; `outputs/kk_phase1/verify_probe_s123/`).** Replies with a verdict: 74–76% in every item
+type. Among them, the student calls the assignment CONSISTENT for 63.5% of the teacher's right answers (580 of 913),
+60.6% of the one-flip answers (550 of 908) and 64.7% of the teacher's wrong answers (529 of 818). The verdict does not
+depend on whether the assignment is right: **the untrained student cannot verify an assignment**; it leans toward
+"consistent" and is otherwise at chance (4-reply majorities right: 57.3%, 29.7%, 19.9%). Checking an answer is not
+within its reach any more than finding one is. A verify-then-solve method would have to teach verification first,
+and a first step that only asks the student to judge answers gives no usable signal without training. Not in the
+paper (a development check).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
