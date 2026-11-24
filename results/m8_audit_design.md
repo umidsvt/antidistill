@@ -2413,6 +2413,26 @@ temperature 1.0 and at most 2% reaching the teacher's answer; some replies degen
 The same test also runs at temperature 0.6 (the scoring temperature) on GPU 1, to separate sampling noise from
 inability; the temperature-1.0 run stays the fixed one. Outputs: `repair_probe_s123` (1.0), `repair_probe_t06_s123`.
 
+**Result (2026-11-24 13:58; `outputs/kk_phase1/repair_probe_s123/`, `repair_probe_t06_s123/`).** Per prompt and k:
+share of replies reaching the teacher's answer / puzzles reached at least once in 8 / unreadable replies; random-flip
+reference for puzzles reached in 8: 68.3% (k = 1), 28.8% (k = 2), 17.1% (k = 3).
+
+| Temperature | Prompt | k = 1 | k = 2 | k = 3 |
+| --- | --- | --- | --- | --- |
+| 1.0 (fixed) | open | 2.1 / 13.7 / 50.5 | 1.0 / 7.7 / 52.7 | 0.8 / 6.7 / 54.2 |
+| 1.0 (fixed) | count | 1.8 / 12.7 / 53.0 | 1.0 / 7.0 / 57.8 | 0.5 / 3.7 / 60.9 |
+| 0.6 | open | 4.3 / 27.0 / 11.6 | 2.8 / 17.7 / 11.8 | 1.5 / 11.3 / 11.3 |
+| 0.6 | count | 4.6 / 29.0 / 9.5 | 2.0 / 13.7 / 16.9 | 1.0 / 8.3 / 21.0 |
+
+- The student rarely returns the given answer unchanged (2–8%), but it changes the wrong people: only 9–24% of replies
+  change exactly k people, and it reaches the target less often than random flips of k people would.
+- At temperature 1.0 half the replies are unreadable; at 0.6 a tenth to a fifth.
+- Saying how many people are wrong (count) does not help.
+- **Coverage against solving from scratch:** at k = 1 and temperature 0.6 the teacher's answer is reached on 27–29% of
+  puzzles in 8 replies, against 6.8% when the student solves the puzzle itself (§26 D1, 8 tries at 0.8). The repair
+  task gives an RL signal on about four times as many puzzles, far below the random-flip ceiling.
+- Not in the paper (a development check).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
