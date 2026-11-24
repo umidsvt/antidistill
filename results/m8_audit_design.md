@@ -2388,6 +2388,31 @@ within its reach any more than finding one is. A verify-then-solve method would 
 and a first step that only asks the student to judge answers gives no usable signal without training. Not in the
 paper (a development check).
 
+## 28. Repairing corrupted answers: does the untrained student reach the teacher's answer? (test 1, 2026-11-24; go-ahead from the user)
+
+**Why.** Candidate Phase 2 method: train the student to repair the teacher's answer with k people deliberately
+flipped, rewarded by agreement with the teacher's answer, raising k toward solving from scratch (proposal of
+2026-11-21; closest work: hint annealing, GASP, reverse curriculum, see `results/lit_answer_only.md` §6). Such RL only
+works if the untrained student reaches the teacher's answer often enough at small k. §27 showed it cannot verify, so it
+may simply return the answer it is given.
+
+**Test** (`scripts/kk_repair_probe.py`, GPU 0, seed 123, no training). 300 random training puzzles with a teacher
+answer (target: the teacher's answer, as the method's reward). For k = 1, 2, 3, the teacher's answer with k random
+people flipped, in two prompts: **open** ("this proposed answer may contain errors; check it and give the corrected
+answer") and **count** ("exactly k people are labeled wrong; find them and give the corrected answer"). 8 replies per
+item, temperature 1.0 (as the RL rollouts), 2,048 tokens, the student's chat template with the fixed date line; the
+answer is read with the task's checker.
+
+**Read-out per prompt and k.** Share of replies that reach the teacher's answer; puzzles reached at least once in 8
+(the reward coverage); replies that return the given answer unchanged; replies changing exactly k people; unreadable
+replies. Reference: a student that flips k random people reaches the target with probability 1 / C(N, k) per reply
+(k = 1: 1/7 or 1/8; reached at least once in 8: about 66–71%; k = 2: about 33%; k = 3: about 21%).
+
+**Addition before the full run (2026-11-24 13:15).** The smoke test (6 puzzles) gave 50–71% unreadable replies at
+temperature 1.0 and at most 2% reaching the teacher's answer; some replies degenerate ("tennis on the other point").
+The same test also runs at temperature 0.6 (the scoring temperature) on GPU 1, to separate sampling noise from
+inability; the temperature-1.0 run stays the fixed one. Outputs: `repair_probe_s123` (1.0), `repair_probe_t06_s123`.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
