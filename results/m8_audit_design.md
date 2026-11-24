@@ -2460,6 +2460,10 @@ answer; target always the teacher's answer):
 (`test_guessB5`: B5 s123's test answers as the proposed answer; the attacker's two-step system); for I2 also
 **infill** (`test_mask_truth_m1`). References: I0 0.8% (s123 1.3%), B5 s123 22.7%, U_inst s123 53.1%.
 
+**Launched 2026-11-24 14:31** on GPUs 0, 1, 4, 5, 6, 7. GPU 3 had no job, so one sensitivity run was added before it
+started: **I1 at learning rate 2e-5** (`I1_repair_lr2e5`, otherwise identical), because B3 and B4 barely moved at
+5e-6 in 107 steps (§25.2); it guards against reading a too-slow learning rate as a failed idea.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
