@@ -60,6 +60,8 @@ def main() -> int:
     ap.add_argument("--max-tokens", type=int, default=2048)
     ap.add_argument("--gpu-mem", type=float, default=0.85)
     ap.add_argument("--limit", type=int, default=0, help="first N puzzles (smoke tests only)")
+    ap.add_argument("--no-hint", action="store_true", help="m8 §29 (I4, repair self-training): own round only, no "
+                    "hint or salvage rounds (the pool's questions already carry a corrupted answer)")
     ap.add_argument("--student", default=STUDENT,
                     help="m8 §25: unsloth/Llama-3.2-3B-Instruct; the instruct student tries in its chat format, as it "
                          "is trained and scored (kk_sft.user_turn, kk_eval), with no demonstration")
@@ -105,9 +107,9 @@ def main() -> int:
     usable = [x for x in pool if teacher[x["id"]] is not None]
     own = attempt(usable, False, a.k, "own")
     left = [x for x in usable if own[x["id"]] is None]
-    hinted = attempt(left, True, a.k_hint, "hint") if left else {}
+    hinted = attempt(left, True, a.k_hint, "hint") if left and not a.no_hint else {}
     left2 = [x for x in left if hinted.get(x["id"]) is None]
-    salvaged = attempt(left2, True, a.k_salvage, "salvage") if left2 else {}
+    salvaged = attempt(left2, True, a.k_salvage, "salvage") if left2 and not a.no_hint else {}
     rows, unsolved, src = [], [], {"own": 0, "hint": 0, "salvage": 0}
     for x in usable:
         for name, d in (("own", own), ("hint", hinted), ("salvage", salvaged)):

@@ -2433,6 +2433,33 @@ reference for puzzles reached in 8: 68.3% (k = 1), 28.8% (k = 2), 17.1% (k = 3).
   task gives an RL signal on about four times as many puzzles, far below the random-flip ceiling.
 - Not in the paper (a development check).
 
+## 29. Phase 2 exploration, wave 1: answer-space curricula (2026-11-24; the user asked for several ideas in parallel on up to 7 GPUs)
+
+**Context.** The user asked to propose and try several method ideas, using GPUs 0, 1, 3–7 (GPU 2 stays free for the
+user's other project), and to document ideas and checks in md files. The ideas and their rationale are in
+`results/phase2_ideas.md` (I1–I5). Development on seed 123; results are interpreted after they are seen (§24 rule).
+
+**Training sets** (`scripts/kk_task_sets.py`, `outputs/kk_phase2/sets/`; seed 123; only puzzles with a teacher
+answer; target always the teacher's answer):
+- `train_repair_k12`: the teacher's answer with k ∈ {1, 2} people flipped (882 / 830), open repair prompt (§28).
+- `train_mask_m12`: the teacher's labels of all but m ∈ {1, 2} people given as known (882 / 830).
+- `train_guessB1`: B1 s123's own answer on the training puzzle as the proposed answer (§26 D3 predictions).
+- `train_mix`: half plain puzzles (889), half repair k ∈ {1, 2} (412 / 411).
+- `train_repair_k1` (for I4): k = 1 for every puzzle.
+
+**Runs** (launcher `scripts/64_phase2_wave1.sh`; students under `outputs/kk_phase2/students/`):
+- **I1 repair RL, I2 infill RL, I3 guess-repair RL, I5 mixed RL**: GRPO from the untrained instruct student with B3's
+  settings (§25.2: LoRA 128, Dr. GRPO, lr 5e-6, KL 1e-4, 16 × 8 replies per step, 4,096 tokens, one epoch, exact
+  agreement with the teacher's answer) except **temperature 0.6** (§28: at 1.0 half the replies are unreadable).
+- **I4 repair self-training**: `kk_star.py --no-hint` on `train_repair_k1` (8 tries at 0.6, 2,048 tokens, keep the
+  first try reaching the teacher's answer), then B1's SFT recipe on the kept texts.
+- **Baselines**: the untrained student on the three evaluation sets below.
+
+**Evaluation** of every student (`kk_eval.py`, 1,000 test puzzles, seed 123): **solve** (the standard test);
+**repair** (`test_repair_truth_k1`: the reference answer with one person flipped; diagnostic); **guess → repair**
+(`test_guessB5`: B5 s123's test answers as the proposed answer; the attacker's two-step system); for I2 also
+**infill** (`test_mask_truth_m1`). References: I0 0.8% (s123 1.3%), B5 s123 22.7%, U_inst s123 53.1%.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
