@@ -71,5 +71,14 @@ let the skill transfer to the test format within one model.
 - **Guess → repair**: B5 s123's test answers as the starting answer; the attacker's two-step system.
 - Reference points: I0 0.8%, B5 25.5% (s123: 22.7%), U_inst 53.9% (s123: 53.1%).
 
+### I2b. Wider infill curriculum
+I2 with m ∈ {1, 2, 3, 4} hidden people: can the infill signal be pushed toward solving (7–8 people)? Added
+2026-11-24 15:30 on the idle GPU 5, because I2 was the only run with a dense reward early on.
+
 ## Status
-- 2026-11-24: wave 1 (I1–I5 and the I3 baseline) designed, m8 §29.
+- 2026-11-24 14:31: wave 1 (I1–I5, I1 at lr 2e-5, baselines) launched on 7 GPUs, m8 §29.
+- 2026-11-24 15:30, early read-outs (m8 §29):
+  - Untrained student: solve 1.3%, repair 4.2%, **guess → repair 3.9%** (it ruins B5's 22.7%: unguided repair hurts),
+    infill of one person 31.0%.
+  - I4 yield: own repairs reach the teacher's answer on 458 of 1,712 puzzles (26.8%); SFT running.
+  - RL, first 12 steps: I1, I3, I5 flat at 0–7% exact agreement; **I2 22–43%**. I2b added.

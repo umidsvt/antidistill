@@ -2464,6 +2464,17 @@ answer; target always the teacher's answer):
 started: **I1 at learning rate 2e-5** (`I1_repair_lr2e5`, otherwise identical), because B3 and B4 barely moved at
 5e-6 in 107 steps (§25.2); it guards against reading a too-slow learning rate as a failed idea.
 
+**Early read-outs (2026-11-24 15:30).**
+- Untrained student (I0 s123, the baselines): solve 1.3%; repair (one person flipped in the reference answer) 4.2%;
+  **guess → repair from B5's answers 3.9%** (B5 alone: 22.7%, so unguided repair destroys most of B5's right
+  answers); infill of one hidden person 31.0%.
+- I4 generation: the student's own repair tries reach the teacher's answer on 458 of 1,712 puzzles (26.8%, as §28
+  predicted); 401 of the kept texts end in the true answer. SFT on them is running.
+- RL, steps 1–12 (exact-agreement reward per step): I1 1.6–5.5%, I1 at 2e-5 0.8–7.0%, I3 0–6.3%, I5 0–3.9%, all flat so
+  far; **I2 (infill) 22–43%**, the only dense signal.
+- **Added on the idle GPU 5: I2 with m ∈ {1, 2, 3, 4}** (`train_mask_m1234`, otherwise I2's settings): can the
+  infill curriculum be pushed toward solving (7–8 people)?
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
