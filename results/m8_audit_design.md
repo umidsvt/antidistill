@@ -2475,6 +2475,30 @@ started: **I1 at learning rate 2e-5** (`I1_repair_lr2e5`, otherwise identical), 
 - **Added on the idle GPU 5: I2 with m ∈ {1, 2, 3, 4}** (`train_mask_m1234`, otherwise I2's settings): can the
   infill curriculum be pushed toward solving (7–8 people)?
 
+**Wave 1 results (training done 2026-11-24 22:19–2026-11-25 01:45; evaluations finished 2026-11-25 10:38).** Another
+user's jobs started on GPUs 0, 4, 5 (and 2) between our runs; three evaluations failed for lack of memory and one chain
+waited on GPU 0. The launcher was stopped and the ten missing evaluations rerun (`scripts/67_phase2_fixup_evals.sh`).
+
+| Student (s123) | Solve | Repair (k = 1) | Guess → repair (B5) | Infill (m = 1) | Training reward, start → end |
+| --- | --- | --- | --- | --- | --- |
+| I0 (untrained) | 1.3 | 4.2 | 3.9 | 31.0 | — |
+| I1 repair RL | 1.3 | 6.9 | 6.0 | 35.3 | 3.3 → 4.6% |
+| I1 repair RL, lr 2e-5 | 1.8 | 7.3 | 6.8 | 34.2 | 3.9 → 6.1% |
+| I2 infill RL (m 1–2) | 1.3 | 7.2 | 5.7 | **60.0** | 29.8 → 46.1% |
+| I2b infill RL (m 1–4) | 2.1 | 8.6 | 8.4 | **59.9** | 18.0 → 31.6% |
+| I3 guess-repair RL | 1.2 | 7.7 | 7.7 | 41.1 | 2.3 → 6.4% |
+| I4 repair self-training | 0.2 | 6.4 | 6.6 | 18.7 | — |
+| I5 mixed RL | 0.6 | 3.9 | 4.8 | 33.1 | 1.4 → 2.5% |
+
+- **No idea transfers to solving from scratch** (0.2–2.1% against I0's 1.3%), and none rescues B5's guesses (B5 alone:
+  22.7%; every repairer lowers it to 4–8%).
+- **Infill is learned** (31 → 60% at one hidden person), repair barely (4.2 → 6.9–8.6%).
+- Why infill does not transfer (interpretation): with one or two people hidden, a guess is right with probability 1/2
+  or 1/4, so the reward does not demand the case analysis that solving needs; the curriculum also stopped at m = 4 of
+  7–8.
+- Not in the paper yet; if the method direction ends negative, the transfer failure is a finding (answer-space
+  curricula teach the subtask, not the reasoning).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

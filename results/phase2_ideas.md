@@ -82,3 +82,16 @@ I2 with m ∈ {1, 2, 3, 4} hidden people: can the infill signal be pushed toward
     infill of one person 31.0%.
   - I4 yield: own repairs reach the teacher's answer on 458 of 1,712 puzzles (26.8%); SFT running.
   - RL, first 12 steps: I1, I3, I5 flat at 0–7% exact agreement; **I2 22–43%**. I2b added.
+- 2026-11-25, **wave 1 results** (m8 §29): every idea learns its own task (infill 31 → 60%; repair 4 → 7–9%), but
+  **none transfers to solving** (0.2–2.1% vs 1.3% untrained) and none improves on B5's guesses (all lower B5's 22.7% to
+  4–8%). Likely reasons: small hidden sets reward guessing (1/2, 1/4), the curriculum never reached the full puzzle,
+  and repair stays too sparse to learn in one epoch.
+
+## Wave 2 (planned 2026-11-25)
+- **W2a. Scaffolded exploration** (no training first): the root problem is that the untrained student reaches the
+  teacher's answer on only 6.8% of puzzles. Does a worked example (Xie et al.'s two-person demonstration) or a
+  case-analysis instruction ("assume a person is a knight, derive consequences, a contradiction makes them a knave,
+  check the final assignment") raise that? If coverage rises substantially, answer-filtered self-training and RL on
+  the scaffolded prompt become viable, followed by removing the scaffold.
+- **W2b. Annealed infill to the full puzzle**: infill RL in stages (m ∈ {1–3} → {3–5} → {5–N} → solve), each stage
+  starting from the previous adapter; guessing stops paying as m grows. About 21 h on one GPU.
