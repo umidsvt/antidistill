@@ -7,6 +7,7 @@ read these files like the plain puzzle files (their prompt is kk_sft.user_turn(q
   repair  the source answer with k people flipped (k drawn from --ks per puzzle) after "may contain errors"   (I1)
   mask    the source labels of all but m people (m from --ms) as known identities                             (I2)
   guess   a student's stored answer (--guesses results.jsonl) as the proposed answer                         (I3)
+  scaffold  the plain puzzle with a worked example and/or a case-analysis instruction (--style demo|case|both)  (W2a)
   Options: --source teacher|truth (repair, mask); --mix-solve p keeps the plain question for a share p (I5).
 
     python3 -I scripts/kk_task_sets.py repair --ks 1,2 --source teacher --pool data/kk/step2_train.jsonl \
@@ -33,7 +34,8 @@ def answer_text(names, labels):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["repair", "mask", "guess"])
+    ap.add_argument("cmd", choices=["repair", "mask", "guess", "scaffold"])
+    ap.add_argument("--style", choices=["demo", "case", "both"], default="both")
     ap.add_argument("--pool", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--source", choices=["teacher", "truth"], default="teacher")
@@ -48,6 +50,19 @@ def main() -> int:
     T = load_tries(Path("outputs/kk_step2/gen"), "T") if a.source == "teacher" and a.cmd != "guess" else {}
     guesses = {r["id"]: r["labels"] for r in map(json.loads, open(a.guesses))} if a.cmd == "guess" else {}
     rows, skipped, kinds = [], 0, {}
+    if a.cmd == "scaffold":   # no answer used: every puzzle of the pool
+        from kk_star import DEMO_A, DEMO_Q
+        case = ("Solve it by case analysis: pick one person and assume they are a knight; work out what the statements "
+                "then imply for the others, one step at a time, until you reach a contradiction or a full assignment "
+                "that satisfies every statement. If the assumption leads to a contradiction, that person is a knave. "
+                "Before answering, check every person's statement against your final assignment.")
+        for r in pool:
+            quiz = r["quiz"] if a.style == "demo" else f"{r['quiz']}\n\n{case}"
+            if a.style in ("demo", "both"):
+                quiz = f"{DEMO_Q}\n### Answer: {DEMO_A}\n### Question: {quiz}"
+            rows.append({**r, "quiz": quiz, "task": f"scaffold {a.style}"})
+        pool = []
+        kinds[f"scaffold {a.style}"] = len(rows)
     for r in pool:
         if a.cmd == "guess":
             src = guesses.get(r["id"])

@@ -2499,6 +2499,22 @@ waited on GPU 0. The launcher was stopped and the ten missing evaluations rerun 
 - Not in the paper yet; if the method direction ends negative, the transfer failure is a finding (answer-space
   curricula teach the subtask, not the reasoning).
 
+## 30. Phase 2 wave 2a: does a scaffold raise how often the student reaches the teacher's answer? (2026-11-25)
+
+**Why.** Every answers-only method that teaches reasoning needs training puzzles on which the student's own reasoning
+reaches the teacher's answer; untrained, it does so on 117 of 1,712 (6.8%, §26 D1). Wave 1 tried to get around this
+with easier tasks and did not transfer. Here: help the student on the real task with a hand-written scaffold, which an
+attacker can write without the teacher.
+
+**Test** (no training; `kk_sample.py`, 8 tries per training puzzle, temperature 0.8 and 2,048 tokens as §26 D1, seed
+123, GPU 3, sequential): the plain puzzle plus (demo) Xie et al.'s two-person worked example (the exemplar of §20),
+(case) a case-analysis instruction (assume a person is a knight, derive, a contradiction makes them a knave, check the
+final assignment), (both). Sets: `outputs/kk_phase2/sets/train_scaffold_{demo,case,both}.jsonl`.
+
+**Read-out:** readable tries, tries right, puzzles whose teacher answer is reached at least once (against 117 / 1,712
+unscaffolded). If one scaffold lifts this well above 6.8%, the next step is answer-filtered self-training or RL on the
+scaffolded prompt, then removing the scaffold.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
