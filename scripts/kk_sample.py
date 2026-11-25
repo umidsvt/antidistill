@@ -37,10 +37,10 @@ def main() -> None:
         pool = pool[:a.limit]
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    llm = LLM(model=a.student, tokenizer=STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=4096,
+    llm = LLM(model=a.student, tokenizer=a.student if "Qwen" in a.student else STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=4096,
               gpu_memory_utilization=a.gpu_mem, seed=a.seed)
     tok = llm.get_tokenizer()
-    eot = tok.convert_tokens_to_ids("<|eot_id|>")
+    eot = tok.convert_tokens_to_ids("<|im_end|>" if "Qwen" in a.student else "<|eot_id|>")  # m8 §31: Qwen student
     prompts = [tok.apply_chat_template([user_turn(r["quiz"])], tokenize=False, add_generation_prompt=True,
                                        date_string=DATE) for r in pool]
     t0 = time.time()

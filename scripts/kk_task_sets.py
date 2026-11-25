@@ -9,6 +9,7 @@ read these files like the plain puzzle files (their prompt is kk_sft.user_turn(q
   guess   a student's stored answer (--guesses results.jsonl) as the proposed answer                         (I3)
   scaffold  the plain puzzle with a worked example and/or a case-analysis instruction (--style demo|case|both)  (W2a)
   Options: --source teacher|truth (repair, mask); --mix-solve p keeps the plain question for a share p (I5).
+  mask rows store the hidden people's indices ("hidden"); an m >= the number of people gives the plain puzzle (m8 §31).
 
     python3 -I scripts/kk_task_sets.py repair --ks 1,2 --source teacher --pool data/kk/step2_train.jsonl \
         --out outputs/kk_phase2/sets/train_repair_k12.jsonl
@@ -26,6 +27,15 @@ from kk_build import load_tries  # noqa: E402
 
 REPAIR = ("Below is a proposed answer to the puzzle. It may contain errors. Check every person's statement against "
           "it and give the corrected answer.")
+
+
+def mask_quiz(r, src, hidden):
+    """The infill question (I2): the puzzle, the given labels of everyone not in `hidden`, and the request."""
+    names, n = r["names"], len(r["names"])
+    known = "\n".join(f"- {names[i]} is a {'knight' if src[i] else 'knave'}" for i in range(n) if i not in hidden)
+    unknown = ", ".join(names[i] for i in hidden)
+    return (f"{r['quiz']}\n\nSome of the identities are already known:\n{known}\nFind the identity of "
+            f"{unknown} from the statements, and give the full answer for all {n} people.")
 
 
 def answer_text(names, labels):
@@ -88,13 +98,14 @@ def main() -> int:
             task = "guess"
         else:
             m = rng.choice([int(x) for x in a.ms.split(",")])
+            if m >= n:   # W3 (m8 §31): m >= the number of people is the plain puzzle, every person hidden
+                rows.append({**r, "task": "solve", "hidden": list(range(n))})
+                kinds["solve"] = kinds.get("solve", 0) + 1
+                continue
             hidden = sorted(rng.sample(range(n), m))
-            known = "\n".join(f"- {names[i]} is a {'knight' if src[i] else 'knave'}" for i in range(n) if i not in hidden)
-            unknown = ", ".join(names[i] for i in hidden)
-            quiz = (f"{r['quiz']}\n\nSome of the identities are already known:\n{known}\nFind the identity of "
-                    f"{unknown} from the statements, and give the full answer for all {n} people.")
+            quiz = mask_quiz(r, src, hidden)
             task = f"mask m={m}"
-        rows.append({**r, "quiz": quiz, "task": task})
+        rows.append({**r, "quiz": quiz, "task": task} | ({"hidden": hidden} if a.cmd == "mask" else {}))
         kinds[task] = kinds.get(task, 0) + 1
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)

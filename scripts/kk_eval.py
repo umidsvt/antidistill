@@ -44,7 +44,7 @@ def main() -> int:
         rows = rows[:a.limit]
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    llm = LLM(model=a.student, tokenizer=STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=a.max_tokens + 1024,
+    llm = LLM(model=a.student, tokenizer=a.student if "Qwen" in a.student else STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=a.max_tokens + 1024,
               gpu_memory_utilization=a.gpu_mem, seed=a.seed, enable_lora=bool(a.adapter), max_lora_rank=128)
     tok = llm.get_tokenizer()
     prompts = [tok.apply_chat_template([user_turn(r["quiz"])], tokenize=False, add_generation_prompt=True,
@@ -53,7 +53,7 @@ def main() -> int:
     # stop at the end of the student's turn (m8 §18, 2026-11-15): the base model's own end token is <|end_of_text|>,
     # but the students are trained in the chat template, whose turns end with <|eot_id|>. Without this, generation ran
     # past the answer into an invented next turn, and the checker read the last answer in that extra text.
-    eot = tok.convert_tokens_to_ids("<|eot_id|>")
+    eot = tok.convert_tokens_to_ids("<|im_end|>" if "Qwen" in a.student else "<|eot_id|>")  # m8 §31: Qwen student
     t0 = time.time()
     outs = llm.generate(prompts, SamplingParams(n=1, temperature=a.temperature, top_p=a.top_p, max_tokens=a.max_tokens,
                                                 seed=a.seed, stop_token_ids=[eot]), lora_request=lora)

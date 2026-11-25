@@ -87,7 +87,7 @@ I2 with m ∈ {1, 2, 3, 4} hidden people: can the infill signal be pushed toward
   4–8%). Likely reasons: small hidden sets reward guessing (1/2, 1/4), the curriculum never reached the full puzzle,
   and repair stays too sparse to learn in one epoch.
 
-## Wave 2 (planned 2026-11-25)
+## Wave 2 (2026-11-25)
 - **W2a. Scaffolded exploration** (no training first): the root problem is that the untrained student reaches the
   teacher's answer on only 6.8% of puzzles. Does a worked example (Xie et al.'s two-person demonstration) or a
   case-analysis instruction ("assume a person is a knight, derive consequences, a contradiction makes them a knave,
@@ -95,3 +95,44 @@ I2 with m ∈ {1, 2, 3, 4} hidden people: can the infill signal be pushed toward
   the scaffolded prompt become viable, followed by removing the scaffold.
 - **W2b. Annealed infill to the full puzzle**: infill RL in stages (m ∈ {1–3} → {3–5} → {5–N} → solve), each stage
   starting from the previous adapter; guessing stops paying as m grows. About 21 h on one GPU.
+
+### Wave 2a result (m8 §30)
+No scaffold helps: the teacher's answer is reached on 5.9% (worked example), 6.6% (case-analysis instruction) and 4.6%
+(both) of puzzles, against 6.8% unscaffolded, and readability drops. 6.8% is near what guessing gives (about 2–3% by
+luck). W2b in its first form is replaced by I7 below.
+
+### What wave 1's infill students actually learned (m8 §30, diagnostic)
+Scored per person group at one hidden person: I0 copies the given labels right on 62% of readable replies and gets the
+hidden person right on 60%; I2 92% and **67%** (a coin flip gives 50%). Infill RL taught reading and copying. The one
+deduction step (a person's label from their statement and the given labels) barely moved. **The bottleneck is a single
+deduction step, not puzzle length**, which explains why no curriculum transferred.
+
+## Wave 3 (launched 2026-11-25 17:14, m8 §31)
+
+### I6. Answer views for the answers-only student
+The only route that has worked (B1 → B5, 47% of the gap) learns from answers without reasoning. Give it more of the
+puzzle's structure per answer: besides puzzle → answer, train on infill views (the teacher's labels of a random subset
+given, the full answer as target). Each answer then supervises many conditionals (a person's label given the
+others'), not just the joint answer. SFT on plain + 3 views per puzzle, then B5's RL.
+- Prior work: masked or any-order training of structured outputs is standard in other areas (masked language models,
+  any-order autoregressive models); in answers-only distillation the multi-part structure of the teacher's answers has
+  not been used as far as we found.
+- **I6c control**: plain + 3 renamed copies (same number of examples and steps, no partial answers); also tests
+  renaming as augmentation.
+
+### I7. Infill curriculum with a hidden-person reward
+I2's reward paid for copying the given labels; the new reward scores only the hidden people. Stages m ∈ {1,2} →
+{2,3,4} → {4,5,6} → {6,7,8} (the last stage is half plain puzzles), each from the previous adapter, lr 2e-5. The
+chain stops after stage 1 unless the hidden person is right on at least 75% of readable replies at one hidden person.
+- Prior work: reverse curricula (R³, Xi et al.) start from late states of a *demonstration*; here the partial states
+  come from the answer alone, which works because a puzzle's answer decomposes into partial assignments.
+
+### I7b. The deduction step alone
+Two epochs of RL on one-hidden-person items only. Can answers-only RL sharpen the single deduction step? If not, the
+reasoning route is closed for this student without demonstrations, and the paper's story is that answers teach a
+shortcut because the student cannot bootstrap the deduction.
+
+### I8. A second student: Qwen2.5-3B-Instruct, untrained
+Is near-chance coverage specific to Llama-3.2-3B (which is known to improve little under RL on reasoning tasks
+without priming; Gandhi et al. 2025)? Solve, one-hidden-person deduction, and coverage over 8 tries. If Qwen
+deduces much better, the reasoning route (RL with the teacher's answers from the untrained student) may work for it.

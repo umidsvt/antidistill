@@ -36,7 +36,9 @@ INSTRUCT = "unsloth/Llama-3.2-3B-Instruct"
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--reward", choices=["exact", "partial"], required=True)
+    ap.add_argument("--reward", choices=["exact", "partial", "hidden"], required=True,
+                    help="hidden (m8 §31): 1 if every hidden person of an infill row (its 'hidden' indices; every "
+                         "person for a plain row) is labeled as the teacher labeled them; the given people are not scored")
     ap.add_argument("--seed", type=int, required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--pool", default="data/kk/step2_train.jsonl")
@@ -91,7 +93,8 @@ def main() -> int:
             continue
         prompt = tok.apply_chat_template([user_turn(r["quiz"])], tokenize=False, add_generation_prompt=True,
                                          date_string=DATE)
-        data.append({"prompt": prompt, "names": r["names"], "teacher": labels, "solution": list(r["solution"])})
+        data.append({"prompt": prompt, "names": r["names"], "teacher": labels, "solution": list(r["solution"]),
+                     "hidden": r.get("hidden", list(range(len(r["names"]))))})
     if a.limit:
         data = data[:a.limit]
 
@@ -108,11 +111,18 @@ def main() -> int:
             out_.append(0.0 if lab is None else sum(x == y for x, y in zip(lab, t)) / len(t))
         return out_
 
+    def reward_hidden(prompts, completions, names, teacher, hidden, **_):
+        out_ = []
+        for c, n, t, h in zip(completions, names, teacher, hidden):
+            lab = labels_of(c, n)
+            out_.append(0.0 if lab is None else float(all(lab[i] == t[i] for i in h)))
+        return out_
+
     def agrees_with_reference(prompts, completions, names, solution, **_):   # logged only (weight 0)
         return [1.0 if labels_of(c, n) == s else 0.0 for c, n, s in zip(completions, names, solution)]
 
-    funcs = [reward_exact, reward_partial, agrees_with_reference]
-    weights = [1.0, 0.0, 0.0] if a.reward == "exact" else [0.0, 1.0, 0.0]
+    funcs = [reward_exact, reward_partial, reward_hidden, agrees_with_reference]
+    weights = {"exact": [1.0, 0.0, 0.0, 0.0], "partial": [0.0, 1.0, 0.0, 0.0], "hidden": [0.0, 0.0, 1.0, 0.0]}[a.reward]
 
     model = AutoModelForCausalLM.from_pretrained(a.student, torch_dtype=torch.bfloat16,
                                                  attn_implementation="flash_attention_2")

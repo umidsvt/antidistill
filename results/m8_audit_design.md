@@ -2515,6 +2515,66 @@ final assignment), (both). Sets: `outputs/kk_phase2/sets/train_scaffold_{demo,ca
 unscaffolded). If one scaffold lifts this well above 6.8%, the next step is answer-filtered self-training or RL on the
 scaffolded prompt, then removing the scaffold.
 
+**Results (2026-11-25 14:39–17:00; `outputs/kk_phase2/scaffold_*/`).**
+
+| Prompt | Readable tries | Tries right (reference) | Puzzles whose teacher answer is reached in 8 |
+| --- | --- | --- | --- |
+| Plain (§26 D1) | — | — | 117 / 1,712 (6.8%) |
+| Worked example (demo) | 43.9% | 0.8% | 101 (5.9%) |
+| Case-analysis instruction (case) | 39.7% | 0.8% | 113 (6.6%) |
+| Both | 32.5% | 0.5% | 79 (4.6%) |
+
+- **No scaffold raises coverage**; every one lowers readability. Answer-filtered self-training or RL on a scaffolded
+  prompt has no more signal than on the plain one, so it is not run.
+- Coverage at 6.8% is close to what guessing gives: a random assignment is right with probability 1/128 or 1/256,
+  and with about half the tries readable, 8 tries reach a fixed answer on roughly 2–3% of puzzles by luck.
+
+**Follow-up diagnostic: what infill RL learned** (`scripts/kk_hidden_acc.py`, the one-hidden-person test of §29, per
+reply): I0 readable 78.1%, given people copied right 62.2% of readable replies, the hidden person right 59.8%; I2
+96.1% / 92.0% / **67.1%**. I2's gain at one hidden person (31 → 60% exact) is mostly reading and copying; the one
+deduction step it needs (a person's label from their statement and the given labels, coin flip 50%) moved only from
+60% to 67%. The bottleneck is a single deduction step, not the length of the puzzle.
+
+## 31. Phase 2 wave 3: hidden-person reward, answer views for the answers-only student, a second student (2026-11-25)
+
+**Context.** §29–30: nothing so far teaches the student to deduce; the only gains come from the answers-only route
+(B5, 47% of the gap, no reasoning). The user's mandate of 2026-11-24 (several ideas in parallel, up to 7 GPUs, GPU 2
+excluded) covers this wave. Development on seed 123; results interpreted after they are seen (§24 rule). Ideas and
+rationale: `results/phase2_ideas.md` (I6–I8).
+
+**Runs** (launcher `scripts/69_phase2_wave3.sh`, one lane per GPU, every job waiting for a GPU free of other users):
+1. **I7, infill curriculum with the hidden-person reward** (GPU 3). Reward `hidden` in `kk_grpo.py`: 1 if every hidden
+   person is labeled as the teacher labeled them (the given people are not scored, so copying earns nothing), 0
+   otherwise or if unreadable; on a plain puzzle it equals `exact`. Stages, each one epoch from the previous adapter,
+   the teacher's labels given (`kk_task_sets.py mask`, a new hidden draw per stage): m ∈ {1, 2} → {2, 3, 4} →
+   {4, 5, 6} → {6, 7, 8} (m ≥ N is the plain puzzle: 868 of 1,712 prompts in the last stage). I2's GRPO settings
+   (temperature 0.6, 4,096 tokens, 16 × 8 per step) at learning rate 2e-5. After each stage: the one-hidden-person
+   test, a new three-hidden-people test (`test_mask_truth_m3`, reference labels, 1,000 test puzzles) and solve.
+   **Gate after stage 1:** continue only if the hidden person is right on at least 75% of readable replies at one
+   hidden person (I2: 67%); otherwise the deduction step is not being learned and the chain stops.
+2. **I6, answer views for SFT, then RL** (GPU 4). `kk_views.py views --copies 3`: per training puzzle the plain
+   puzzle plus 3 infill views (m uniform in 1..N−1), all with the teacher's full answer as target, no reasoning (6,848
+   examples). B1's SFT recipe (3 epochs, LoRA 128, lr 5e-4), then B5's RL from that adapter (exact reward on plain
+   puzzles, one epoch). Evaluated after SFT (solve, one-hidden-person test) and after RL (solve). Question: do the
+   conditional views give the answers-only student more of the puzzle's structure than B1 (s123 14.9%) and B5 (s123
+   22.7%)?
+3. **I6c, renamed copies, same recipe** (GPU 6), the control for I6: per puzzle the plain puzzle plus 3 copies with
+   every name replaced by other training-set names (6,848 examples). Same number of examples and steps as I6, no
+   partial-answer views; also tests renaming as augmentation.
+4. **I8, Qwen2.5-3B-Instruct untrained** (GPU 7; downloaded to the lab cache). Solve (1 try per test puzzle, as I0),
+   the one-hidden-person test, and coverage (8 tries per training puzzle at 0.8, 2,048 tokens, as §26 D1). Question:
+   is near-chance coverage specific to Llama-3.2-3B? `kk_eval.py` and `kk_sample.py` use Qwen's own tokenizer, chat
+   template and end token for a Qwen student.
+
+5. **I7b, the deduction step alone** (GPU 5, free at launch; `scripts/70_phase2_i7b.sh`): the hidden-person reward on
+   one-hidden-person infill only (`train_mask_hid_m1`, teacher labels given), two epochs at 2e-5, temperature 0.6.
+   Evaluated at step 100 and at the end on the one-hidden-person test, then solve. Question: can answers-only RL
+   sharpen the single deduction step at all? If it stays near I2's 67%, the reasoning route is closed for this
+   student without demonstrations.
+
+Read-outs: §29's tables for I6/I6c against B1/B5 s123; I7's stage table (hidden right at m = 1 and m = 3, solve); I8
+against I0 (solve 1.3%, coverage 117 / 1,712, hidden right 59.8%).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
