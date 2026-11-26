@@ -48,7 +48,7 @@ def main() -> int:
     set_seed(a.seed)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    tok = AutoTokenizer.from_pretrained(STUDENT_TOKENIZER)
+    tok = AutoTokenizer.from_pretrained(a.student if "Qwen" in a.student else STUDENT_TOKENIZER)  # m8 §35: Qwen student
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     rows = [json.loads(line) for line in open(a.train_set)]

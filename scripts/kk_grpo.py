@@ -56,6 +56,9 @@ def main() -> int:
     ap.add_argument("--vllm-mem", type=float, default=0.35)
     ap.add_argument("--save-every", type=int, default=50)
     ap.add_argument("--limit", type=int, default=0, help="first N prompts (smoke tests only)")
+    ap.add_argument("--shuffle-targets", action="store_true", help="m8 §35 control: each prompt's target is the "
+                    "teacher's answer to a different training puzzle with the same number of people (a fixed random "
+                    "derangement, seed 0), so the reward carries no information about the puzzle")
     ap.add_argument("--init-adapter", default="", help="§25.3 (B5): start from this trained LoRA adapter (e.g. B1's) "
                     "instead of a new one; the KL reference stays the untrained student (adapter off)")
     a = ap.parse_args()
@@ -95,6 +98,18 @@ def main() -> int:
                                          date_string=DATE)
         data.append({"prompt": prompt, "names": r["names"], "teacher": labels, "solution": list(r["solution"]),
                      "hidden": r.get("hidden", list(range(len(r["names"]))))})
+    if a.shuffle_targets:
+        import random
+        rng = random.Random(0)
+        for n in sorted({len(d["names"]) for d in data}):
+            idx = [i for i, d in enumerate(data) if len(d["names"]) == n]
+            perm = idx[:]
+            while any(i == j for i, j in zip(idx, perm)):   # a derangement: no puzzle keeps its own target
+                rng.shuffle(perm)
+            targets = [data[j]["teacher"] for j in perm]
+            for i, t in zip(idx, targets):
+                data[i]["teacher"] = t
+                data[i]["hidden"] = list(range(n))
     if a.limit:
         data = data[:a.limit]
 
@@ -160,7 +175,7 @@ def main() -> int:
     trainer.model.save_pretrained(str(out / "adapter"))
     log = trainer.state.log_history
     (out / "train_log.json").write_text(json.dumps(log, indent=1))
-    meta = {"method": f"GRPO, reward {a.reward}", "student": a.student, "seed": a.seed, "prompts": len(data),
+    meta = {"method": f"GRPO, reward {a.reward}" + (", shuffled targets (control)" if a.shuffle_targets else ""), "student": a.student, "seed": a.seed, "prompts": len(data),
             "steps": trainer.state.global_step, "lr": a.lr, "beta": a.beta, "num_generations": a.num_generations,
             "prompts_per_step": a.prompts_per_step, "epochs": a.epochs, "max_completion": a.max_completion,
             "temperature": a.temperature, "loss_type": "dr_grpo", "init_adapter": a.init_adapter, "train_minutes": round((time.time() - t0) / 60, 1),

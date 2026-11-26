@@ -2770,6 +2770,38 @@ on GPU 6 (`scripts/75_rg_pilot2.sh`).
   not teach this student the deduction step. **The reasoning route is closed for Llama-3.2-3B** without
   demonstrations (§29–31, I7, I7b).
 
+## 35. Qwen2.5-3B-Instruct as the student (2026-11-26 12:00; go-ahead from the user)
+
+**Why.** Every reasoning-based answers-only method failed for Llama-3.2-3B because it cannot take the single
+deduction step (§29–31, I7b), so it almost never reaches the teacher's answer by reasoning. Untrained Qwen2.5-3B-
+Instruct is better at both (one hidden person: 76.3% against 59.8%; coverage in 8 tries: 12.2% against 6.8%; §31 I8),
+and Gandhi et al. (2025) found that RL improves Qwen-2.5-3B's reasoning where it does not improve Llama-3.2-3B's. If
+answers-only RL teaches Qwen to reason but not Llama, the finding is a bootstrap threshold.
+
+**Caveats fixed in advance.** (1) RL on Qwen models can raise accuracy with random or wrong rewards by eliciting
+skills the model already has (Shao et al., 2025, "Spurious Rewards"); every Qwen RL run therefore has a control whose
+targets carry no information about the puzzle. (2) The teacher (R1-Distill-Qwen-32B) is built on Qwen2.5, so this
+student shares its tokenizer and pretraining; Llama stays the cross-family student and both are reported.
+
+**Code** (smoke-tested 2026-11-26 11:50): `kk_sft.py` uses Qwen's tokenizer and chat template for a Qwen student
+(`kk_eval.py`, `kk_sample.py` already did, §31); `kk_grpo.py --shuffle-targets` replaces each prompt's target with
+the teacher's answer to another training puzzle with the same number of people (a fixed derangement, seed 0).
+
+**Runs** (seed 123; launcher `scripts/76_qwen.sh`, one GPU each, never GPU 2):
+1. **Q-U**: U_inst's recipe (`kk_sft.py` on `outputs/kk_step2/train_sets/U.jsonl`, the teacher's 2,000 solutions,
+   3 epochs, LoRA 128, lr 5e-4) with the Qwen student; scored with `kk_eval.py` (8,192 tokens). Gives Qwen's gap
+   against Q0 (untrained, solve 1.6%).
+2. **Q-B3**: GRPO from untrained Qwen on the 1,712 puzzles with a teacher answer, exact-agreement reward. B3's
+   settings (§25.2) except learning rate 1e-5 (B3 barely moved at 5e-6; I1 was stable at 2e-5), temperature 0.8
+   (Qwen's coverage was measured at 0.8) and two epochs (214 steps); adapters every 25 steps.
+3. **Q-B3c**: Q-B3 with `--shuffle-targets` (the control).
+Both RL students scored at step 100 and at the end (`kk_eval.py`, solve; mean tokens show whether they reason).
+
+**Decision rule (before any result).** The reasoning route works for Qwen if Q-B3's solve rate exceeds Q-B3c's by at
+least 5 points at the end (to be confirmed on seeds 124–125 before any claim) and its replies still contain reasoning
+(mean length above 300 tokens). If it works, the Phase 2 ideas (curriculum, repair, one-pass refinement) are tested
+on Qwen against Q-B3; if not, the negative finding holds for both students.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
