@@ -2770,7 +2770,7 @@ on GPU 6 (`scripts/75_rg_pilot2.sh`).
   not teach this student the deduction step. **The reasoning route is closed for Llama-3.2-3B** without
   demonstrations (§29–31, I7, I7b).
 
-## 35. Qwen2.5-3B-Instruct as the student (2026-11-26 12:00; go-ahead from the user)
+## 35. Qwen2.5-3B-Instruct as the student (2026-11-26 11:35; go-ahead from the user)
 
 **Why.** Every reasoning-based answers-only method failed for Llama-3.2-3B because it cannot take the single
 deduction step (§29–31, I7b), so it almost never reaches the teacher's answer by reasoning. Untrained Qwen2.5-3B-
@@ -2783,7 +2783,7 @@ skills the model already has (Shao et al., 2025, "Spurious Rewards"); every Qwen
 targets carry no information about the puzzle. (2) The teacher (R1-Distill-Qwen-32B) is built on Qwen2.5, so this
 student shares its tokenizer and pretraining; Llama stays the cross-family student and both are reported.
 
-**Code** (smoke-tested 2026-11-26 11:50): `kk_sft.py` uses Qwen's tokenizer and chat template for a Qwen student
+**Code** (smoke-tested 2026-11-26 11:33): `kk_sft.py` uses Qwen's tokenizer and chat template for a Qwen student
 (`kk_eval.py`, `kk_sample.py` already did, §31); `kk_grpo.py --shuffle-targets` replaces each prompt's target with
 the teacher's answer to another training puzzle with the same number of people (a fixed derangement, seed 0).
 
