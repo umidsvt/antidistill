@@ -2615,6 +2615,51 @@ below I2's 67%): the chain stops after stage 1's solve test, as fixed in §31.
 Read-out: I6c 3-seed means with 95% intervals against B1 and B5 (§25.4); I6d against I6c and B1 on seed 123; I6c
 with 7 copies against 3.
 
+**Change of plan (user, 2026-11-25 22:00):** renamed copies are not a main contribution; they get one GPU. The seed
+124/125 runs of I6c and the 7-copy run were stopped (GPUs 6, 7, 3); I6d (identical copies, GPU 4) continues. The focus
+is (1) a novel answers-only technique that works and (2) possibly a second task where reasoning matters (feasibility
+first, nothing started).
+
+## 33. I9: answer-space iterative refinement with an answers-only student (2026-11-25 22:15)
+
+**Idea** (`results/phase2_ideas.md` I9). The answers-only student trained on infill views (I6) labels one person from
+the others' labels right on 90% of test puzzles, without reasoning (§31), while its whole-puzzle answer is right on
+30%. Iterating that local step turns it into a search in answer space: start from the student's own answer, then, for
+each person in turn, ask the infill question with the current labels of everyone else and take the reply's label for
+that person (a Gibbs-style sweep). Each step is a 67-token answer; three sweeps cost about 25 short answers (≈1.7k
+generated tokens), comparable to one reasoning solution. Everything is learned from the teacher's answers alone.
+
+**Test 1 (no training; `scripts/kk_refine.py`, greedy decoding, 1,000 test puzzles):** the I6 SFT adapter (GPU 3) and
+the I6 RL adapter (GPU 6), 3 sweeps each, with an oracle diagnostic (`--truth-check`, analysis only): with everyone
+else's reference labels given, how often each person is labeled right, and on how many puzzles the reference answer
+is a fixed point of the sweep. Read-out: accuracy after the solve step and after each sweep.
+
+**Test 1 results (2026-11-25 22:30; `outputs/kk_phase2/refine/`; greedy):**
+
+| Adapter | Own answer | Sweep 1 | Sweep 2 | Sweep 3 | Tokens / puzzle | Oracle: person right given the rest / reference is a fixed point |
+| --- | --- | --- | --- | --- | --- | --- |
+| I6 SFT | 31.4 | 34.4 | 34.6 | 34.3 | 1,589 | 91.5% / 54.0% |
+| I6 SFT + RL | 31.5 | 34.2 | 35.5 | **35.9** | 1,588 | 91.6% / 54.0% |
+
+- Refinement adds 3–4 points at about a third of U_inst's tokens (4,561 per puzzle). Changes per sweep fall 445 → 148 →
+  64: the sweeps converge.
+- Where it ends (I6 + RL): 352 puzzles at the right answer, 614 at a wrong answer the sweep no longer changes, 34 still
+  moving; 75 wrong first answers were fixed and 31 right ones lost. Of the 614 wrong fixed points, 189 are one person
+  off, 128 two, 96 three, the rest more.
+- Two limits: the one-person step (91.6% per person, so the reference answer is a fixed point on only 54% of puzzles:
+  the ceiling of this search), and wrong fixed points two or more people away, which one-person updates cannot leave.
+
+**Test 2 (launcher `scripts/73_phase2_refine.sh`, GPUs 3, 6, 7):**
+1. **Block sweeps** (GPU 3, no training): the I6 + RL adapter with schedule 1, 1, 2, 2, 3, 3 (a sweep with block size
+   b asks N random blocks of b people and replaces each block's labels jointly).
+2. **I10, RL on the views** (GPU 7): from the I6 SFT adapter, GRPO with the hidden-person reward on a mixture of plain
+   puzzles (447), one-hidden-person views (617) and views with 2, 3 or 5 hidden (648) (`train_views_rl`, teacher
+   labels given), two epochs, B5's other settings. Then solve and refinement (schedule 1, 1, 1, 2, 3, oracle check).
+   Aim: a sharper one-person step, so the reference answer is a fixed point on more puzzles.
+3. **I11, dense views** (GPU 6): SFT (B1's recipe) on `sft_dense` (19,669 examples: per puzzle the plain puzzle, one
+   view per person, 3 random views; every view with freshly drawn names, since renaming helped in §31), then solve and
+   refinement; then I10's RL from it, solve and refinement again.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

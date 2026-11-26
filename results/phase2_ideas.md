@@ -157,3 +157,23 @@ deduces much better, the reasoning route (RL with the teacher's answers from the
 **Direction this suggests:** the method that works is answers-only learning made data-efficient by answer-preserving
 augmentation, then RL. Next questions: does it scale with copies; which augmentations help (statement order, names);
 does augmentation also help the RL stage; does it hold for Qwen; does it close more of the gap at more seeds.
+
+## Focus after the user's direction (2026-11-25 22:00)
+Renamed copies are a baseline improvement, not the contribution: one GPU (the I6d control). Focus: a novel
+answers-only technique that works, and possibly a second task (feasibility reported to the user; nothing started).
+
+### I9. Answer-space iterative refinement (m8 §33) — current main candidate
+The answers-only student trained on infill views labels one person from the others' labels right on 91.6% of people,
+but solves only 31% of whole puzzles. Use the local step as a search: start from the student's own answer, then for
+each person in turn ask "given everyone else's current labels, who is this?" and update; repeat. Learned from the
+teacher's answers alone; no reasoning text, no solver.
+- Related: discrete diffusion / masked iterative decoding solves Sudoku from input-output pairs (Ye et al., "Beyond
+  Autoregression", 2024); Gibbs-style decoding of structured outputs. New here: as an answers-only distillation
+  method, with an off-the-shelf autoregressive student, compared at matched tokens with distillation from solutions.
+- **Test 1 (no training):** 31.5% → **35.9%** after 3 sweeps (I6 + RL), 1,588 generated tokens per puzzle (U_inst:
+  4,561). Ceiling with this step: the reference answer is a fixed point on 54% of puzzles. 614 puzzles end at a wrong
+  fixed point; 189 of them one person off.
+- **Test 2 (running):** block sweeps (2–3 people updated jointly) to leave wrong fixed points; I10 RL on the views to
+  sharpen the one-person step; I11 a dense view set (every person's view, fresh names) for SFT, then RL.
+- Next if it works: train the student to write the refinement chain in one generation (single pass, like U), and
+  restarts with selection of answers the student itself finds stable.

@@ -8,6 +8,8 @@ format (kk_phase1_sets.conclusion), with no reasoning.
   rename  I6c (control for more examples): the plain puzzle, plus --copies copies with every name replaced by other
           names from the training puzzles (same statements, answer relabeled by position).
   dup     I6d (m8 §32, control for more steps): the plain puzzle --copies + 1 times, identical.
+  dense   I11 (m8 §33): the plain puzzle, one infill view per person (that person hidden), and --copies views with m
+          uniform in 1..N-1; every view with freshly drawn names (as rename).
 
     python3 -I scripts/kk_views.py views --copies 3 --out outputs/kk_phase2/sets/sft_views3.jsonl
 """
@@ -35,7 +37,7 @@ def rename(r, new_names):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["views", "rename", "dup"])
+    ap.add_argument("cmd", choices=["views", "rename", "dup", "dense"])
     ap.add_argument("--copies", type=int, default=3)
     ap.add_argument("--pool", default="data/kk/step2_train.jsonl")
     ap.add_argument("--teacher-gen", default="outputs/kk_step2/gen")
@@ -55,6 +57,14 @@ def main() -> int:
         base = {"id": r["id"], "n_people": r["n_people"], "correct": labels == list(r["solution"])}
         rows.append({**base, "quiz": r["quiz"], "names": r["names"], "text": conclusion(r["names"], labels),
                      "view": "plain"})
+        if a.cmd == "dense":
+            hiddens = [[i] for i in range(n)] + [sorted(rng.sample(range(n), rng.randint(1, n - 1))) for _ in range(a.copies)]
+            for hidden in hiddens:
+                new = rng.sample(name_pool, n)
+                rr = rename(r, new)
+                rows.append({**base, "quiz": mask_quiz(rr, labels, hidden), "names": new,
+                             "text": conclusion(new, labels), "view": f"mask m={len(hidden)}", "hidden": hidden})
+            continue
         for c in range(a.copies):
             if a.cmd == "views":
                 m = rng.randint(1, n - 1)
