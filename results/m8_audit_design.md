@@ -2660,6 +2660,34 @@ is a fixed point of the sweep. Read-out: accuracy after the solve step and after
    view per person, 3 random views; every view with freshly drawn names, since renaming helped in §31), then solve and
    refinement; then I10's RL from it, solve and refinement again.
 
+**Block sweeps (2026-11-25 22:40):** 31.3 → 33.8 → 35.3% after two one-person sweeps, then 34.2, 34.4 (pairs), 34.8,
+33.8% (triples), with 461–969 label changes per block sweep. Joint updates of 2–3 people churn without helping: the
+student's joint guess for several hidden people is less reliable than its one-person guess. The limit is the
+one-person step itself, which I10 and I11 address.
+
+## 34. Second task, pilot: zebra puzzles and cryptarithms (2026-11-25 22:40; go-ahead from the user for the pilot)
+
+**Why.** The knights puzzles are the only setting with a gap (§24); a second task where reasoning matters would show
+the findings are not specific to one puzzle family. Generators: Reasoning Gym 0.1.25 (`.venv-rg`, CPU only).
+
+**Tasks** (`scripts/rg_build.py`, answer parsing and scoring `scripts/rg_common.py`):
+- **Zebra puzzles** (logic grids, K houses × M categories, unique solution guaranteed by the generator). Reasoning
+  Gym asks for one cell (guessable, 1 in K); we ask for the **full arrangement**, one line per house
+  (`House 1: Name=..., Animal=..., ...`); exact = every cell right. Levels 4×4, 5×5, 6×6.
+- **Cryptarithms** (addition, W addends of 3–5 digits), filtered to puzzles with **exactly one solution** (exhaustive
+  column-wise search; 1.6–4.9% of generated puzzles qualify), so the reference mapping is the only right answer;
+  exact = every letter right. Levels W = 2, 3, 4. A different kind of reasoning (arithmetic with search) from the
+  knights puzzles.
+
+**Pilot** (`scripts/rg_pilot.py`, 100 puzzles per level, seed 7 for the puzzles, one try each, temperature 0.6,
+top-p 0.95, as §17): the teacher (R1-Distill-Qwen-32B, tensor parallel 2, 8,192 new tokens) and the untrained student
+(Llama-3.2-3B-Instruct, 4,096 tokens). Launcher `scripts/74_rg_pilot.sh`.
+
+**Selection rule (fixed before any result).** A level qualifies if the teacher solves ≥ 70% (with its reply finished
+within 8,192 tokens) and the untrained student ≤ 10%. Per task, the hardest qualifying level. If both tasks qualify,
+cryptarithms are preferred (a different kind of reasoning from the knights puzzles). The next stage (2,000 training
+and 1,000 test puzzles, teacher solutions, U, I0, B1/B5) needs a separate go-ahead.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
