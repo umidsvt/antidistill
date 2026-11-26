@@ -2760,6 +2760,23 @@ of 20,000 generated, so this level could not be scaled to a full dataset anyway)
 settings and selection rule as round 1. Teacher on GPUs 0,3 (cryptarithms) and 4,5 (zebra) in parallel, the student
 on GPU 6 (`scripts/75_rg_pilot2.sh`).
 
+*Round 2 results (2026-11-26 11:29–12:04; `outputs/rg_pilot2/`).* Solve rate / finished / mean tokens.
+
+| Task, level | Teacher | Student |
+| --- | --- | --- |
+| Cryptarithm, 2 × 3 digits | **91%** / 89% / 3,014 | 0% / 55% / 2,319 |
+| Cryptarithm, 3 × 3 digits (37 puzzles) | 73% / 73% / 4,853 | 0% / 51% / 2,389 |
+| Zebra 3×4 | 58% / 82% / 3,507 | 0% / 72% / 1,747 |
+| Zebra 4×3 | **77%** / 90% / 2,729 | 1% / 74% / 1,611 |
+
+- Qualifying levels: cryptarithms 2 × 3 and 3 × 3, zebra 4×3. The rule prefers cryptarithms; 3 × 3 cannot be scaled
+  (37 single-solution puzzles in 20,000), so the candidate is **2 × 3**.
+- **Pool check (CPU, 2026-11-26 12:15):** of 300,000 generated 2 × 3 cryptarithms, 1,906 have a single solution but
+  only **1,360 are distinct** up to letter renaming and addend order; the distinct pool is close to exhausted, short
+  of the 3,000 distinct puzzles a training and test set need. Options for the authors: cryptarithms with 4-digit
+  addends (larger pool; teacher accuracy not yet measured), or zebra 4×3 (qualifies; the generator gives effectively
+  unlimited distinct puzzles; the same family of reasoning as the knights puzzles).
+
 **I11 and I7b (2026-11-26 03:13–05:23).**
 - **I11 (dense views, 19,669 examples, B1's SFT recipe) failed in training:** the loss spiked at step ~400 (0.88, grad
   norm 2.2) and the student collapsed to a few fixed answers whatever the puzzle (the four most common answers cover
