@@ -2575,6 +2575,46 @@ rationale: `results/phase2_ideas.md` (I6–I8).
 Read-outs: §29's tables for I6/I6c against B1/B5 s123; I7's stage table (hidden right at m = 1 and m = 3, solve); I8
 against I0 (solve 1.3%, coverage 117 / 1,712, hidden right 59.8%).
 
+**Results so far (2026-11-25 17:27–19:55; seed 123; `outputs/kk_phase2/students/`).** I0 s123 1.3%, B1 s123 14.9%,
+B5 s123 22.7%, U_inst s123 53.1%; recovered share = (student − I0) / (U − I0) on seed 123.
+
+| Student (s123) | Solve after SFT | Solve after RL | Recovered (after RL) | One hidden person: readable / given right / hidden right |
+| --- | --- | --- | --- | --- |
+| B1 → B5 (1,712 examples, 216 SFT steps) | 14.9 | 22.7 | 41% | — |
+| I6, plain + 3 infill views (6,848, 858 steps) | 29.9 | 32.2 | 60% | 100 / 100 / 90.3 |
+| **I6c, plain + 3 renamed copies (6,848, 858 steps)** | **33.2** | **36.8** | **69%** | 62.9 / 84.1 / 88.7 |
+
+- **Both four-fold sets roughly double the answers-only student after SFT** (B1 14.9% → 29.9% and 33.2%), and RL adds
+  2–4 points on top (B5 22.7% → 32.2% and 36.8%). The students still answer in 67 tokens without reasoning.
+- **The infill views are not what helps**: the renamed copies, I6's control, do better than the views. The gain
+  comes either from the four-fold number of SFT steps or from the varied surface forms; §32 separates the two.
+- Without any reasoning, both SFT students label a hidden person from the given labels right on 89–90% of readable
+  replies, where the reasoning students of §29 reach 67%.
+- **I8, Qwen2.5-3B-Instruct untrained:** solve 1.6% (Llama 1.3%); one hidden person: readable 78.1%, given right 87.7%,
+  hidden right **76.3%** (Llama 59.8%); coverage 209 / 1,712 (12.2%; Llama 117, 6.8%). Better at the single step,
+  twice the coverage, still near chance on the full puzzle.
+- Caveat: development decisions in Phase 2 are made on the test puzzles (as in Phase 1); every claim needs seeds
+  124–125, and the final recipe should be fixed on a validation split of the training puzzles before the paper.
+
+## 32. Phase 2 wave 3b: renamed copies on more seeds, and the identical-copy control (2026-11-25 21:15)
+
+**Runs** (launcher `scripts/71_phase2_wave3b.sh`, GPUs 4, 6, 7; the user's mandate of 2026-11-24):
+1. **I6c on seeds 124 and 125**: `sft_rename3` (fixed set, built with seed 123, as B1's set is fixed), B1's SFT
+   recipe with training seed 124/125, then B5's RL from that adapter; scored with the same seed.
+2. **I6d, identical copies (seed 123)**: `kk_views.py dup --copies 3`, each plain example four times (6,848 examples,
+   858 steps, as I6c), same recipe. If I6d matches I6c, the gain is from more steps on the same answers; if it stays
+   near B1, from the varied names.
+
+3. **I6c with 7 renamed copies (seed 123)** on GPU 3 once wave 3 ends there (`scripts/72_phase2_rename7.sh`;
+   13,696 examples, about 1,712 SFT steps): does the gain keep growing with more copies?
+
+**I7 stage 1 (2026-11-25 20:56):** hidden person right on 61.8% of readable replies at one hidden person (given people
+right 46.9%, no longer rewarded); training reward 0.41 → 0.52 over the epoch on m ∈ {1, 2}. Below the 75% gate (and
+below I2's 67%): the chain stops after stage 1's solve test, as fixed in §31.
+
+Read-out: I6c 3-seed means with 95% intervals against B1 and B5 (§25.4); I6d against I6c and B1 on seed 123; I6c
+with 7 copies against 3.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).

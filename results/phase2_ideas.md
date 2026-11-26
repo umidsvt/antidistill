@@ -136,3 +136,24 @@ shortcut because the student cannot bootstrap the deduction.
 Is near-chance coverage specific to Llama-3.2-3B (which is known to improve little under RL on reasoning tasks
 without priming; Gandhi et al. 2025)? Solve, one-hidden-person deduction, and coverage over 8 tries. If Qwen
 deduces much better, the reasoning route (RL with the teacher's answers from the untrained student) may work for it.
+
+### Wave 3 results so far (2026-11-25 21:15, seed 123; m8 §31–32)
+| Student | Solve after SFT | After RL | Recovered (s123, after RL) |
+| --- | --- | --- | --- |
+| B1 → B5 | 14.9 | 22.7 | 41% |
+| I6, plain + 3 infill views | 29.9 | 32.2 | 60% |
+| **I6c, plain + 3 renamed copies** | **33.2** | **36.8** | **69%** |
+
+- **Renamed-copy augmentation roughly doubles the answers-only student** (one seed so far). The infill views help less
+  than plain renaming, so the gain is not from partial-answer structure. Still no reasoning (67-token answers).
+- Open question (I6d, running): is it more SFT steps or more varied names? Seeds 124–125 of I6c and a 7-copy run are
+  running.
+- **I7 stage 1 fails its gate**: with the copying reward removed, the hidden person is right on 61.8% (gate 75%). RL
+  does not teach this student the deduction step; I7b (two epochs on the single step) still running.
+- **I8 Qwen2.5-3B-Instruct**: hidden person right 76.3% (Llama 59.8%), coverage 12.2% (Llama 6.8%), solve 1.6%.
+- Without reasoning, the augmented answers-only students get the hidden person right on 89–90%: intuition learned
+  from answers beats the student's own reasoning at the single step.
+
+**Direction this suggests:** the method that works is answers-only learning made data-efficient by answer-preserving
+augmentation, then RL. Next questions: does it scale with copies; which augmentations help (statement order, names);
+does augmentation also help the RL stage; does it hold for Qwen; does it close more of the gap at more seeds.

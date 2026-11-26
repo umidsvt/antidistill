@@ -7,6 +7,7 @@ format (kk_phase1_sets.conclusion), with no reasoning.
           known (kk_task_sets.mask_quiz), m hidden people with m drawn uniformly from 1..N-1 per view.
   rename  I6c (control for more examples): the plain puzzle, plus --copies copies with every name replaced by other
           names from the training puzzles (same statements, answer relabeled by position).
+  dup     I6d (m8 §32, control for more steps): the plain puzzle --copies + 1 times, identical.
 
     python3 -I scripts/kk_views.py views --copies 3 --out outputs/kk_phase2/sets/sft_views3.jsonl
 """
@@ -34,7 +35,7 @@ def rename(r, new_names):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["views", "rename"])
+    ap.add_argument("cmd", choices=["views", "rename", "dup"])
     ap.add_argument("--copies", type=int, default=3)
     ap.add_argument("--pool", default="data/kk/step2_train.jsonl")
     ap.add_argument("--teacher-gen", default="outputs/kk_step2/gen")
@@ -60,6 +61,9 @@ def main() -> int:
                 hidden = sorted(rng.sample(range(n), m))
                 rows.append({**base, "quiz": mask_quiz(r, labels, hidden), "names": r["names"],
                              "text": conclusion(r["names"], labels), "view": f"mask m={m}", "hidden": hidden})
+            elif a.cmd == "dup":
+                rows.append({**base, "quiz": r["quiz"], "names": r["names"], "text": conclusion(r["names"], labels),
+                             "view": "dup"})
             else:
                 new = rng.sample(name_pool, n)
                 rr = rename(r, new)
