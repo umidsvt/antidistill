@@ -39,6 +39,10 @@ def main() -> None:
     ap.add_argument("--schedule", default="", help="block size per sweep, e.g. 1,1,1,2,3 (overrides --sweeps); a sweep "
                     "with block size b > 1 asks N random blocks of b people (seeded), each block's labels replaced jointly")
     ap.add_argument("--truth-check", action="store_true")
+    ap.add_argument("--chains", type=int, default=1, help="m8 §33 test 3: K refinement chains per puzzle; chain 0 starts "
+                    "from the greedy answer, the others from answers sampled at --init-temp; the final answer is the most "
+                    "common chain end among the chains left unchanged by the last sweep (all chains if none)")
+    ap.add_argument("--init-temp", type=float, default=1.0)
     ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--max-tokens", type=int, default=512)
     ap.add_argument("--limit", type=int, default=0)
@@ -48,6 +52,7 @@ def main() -> None:
     rows = [json.loads(line) for line in open(a.puzzles)]
     if a.limit:
         rows = rows[:a.limit]
+    base, K = rows, a.chains
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     llm = LLM(model=a.student, tokenizer=STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=4096,
@@ -57,30 +62,56 @@ def main() -> None:
     sp = SamplingParams(n=1, temperature=0.0, max_tokens=a.max_tokens, seed=a.seed, stop_token_ids=[eot])
     lora = LoRARequest("student", 1, a.adapter)
 
+    def prompts_of(quizzes):
+        return [tok.apply_chat_template([user_turn(q)], tokenize=False, add_generation_prompt=True,
+                                        date_string=DATE) for q in quizzes]
+
     def ask(quizzes):
-        prompts = [tok.apply_chat_template([user_turn(q)], tokenize=False, add_generation_prompt=True,
-                                           date_string=DATE) for q in quizzes]
-        outs = llm.generate(prompts, sp, lora_request=lora, use_tqdm=False)
+        outs = llm.generate(prompts_of(quizzes), sp, lora_request=lora, use_tqdm=False)
         return [o.outputs[0].text for o in outs], [len(o.outputs[0].token_ids) for o in outs]
 
     t0 = time.time()
-    texts, ntok = ask([r["quiz"] for r in rows])
+    texts, ntok = ask([r["quiz"] for r in base])
+    if K > 1:   # the other chains start from sampled answers; rows becomes K copies of each puzzle (chain = k % K)
+        sp_s = SamplingParams(n=K - 1, temperature=a.init_temp, top_p=1.0, max_tokens=a.max_tokens, seed=a.seed,
+                              stop_token_ids=[eot])
+        outs = llm.generate(prompts_of([r["quiz"] for r in base]), sp_s, lora_request=lora, use_tqdm=False)
+        tx, nx = [], []
+        for t, n, o in zip(texts, ntok, outs):
+            tx += [t] + [c.text for c in o.outputs]
+            nx += [n] + [len(c.token_ids) for c in o.outputs]
+        rows, texts, ntok = [r for r in base for _ in range(K)], tx, nx
     first = [parse_labels(t, r["names"], reasoning=False) for t, r in zip(texts, rows)]
     cur = [list(x) if x is not None else [True] * len(r["names"]) for x, r in zip(first, rows)]
     tokens = list(ntok)
     traj = [[list(c)] for c in cur]
 
-    def acc():
-        return round(sum(c == list(r["solution"]) for c, r in zip(cur, rows)) / len(rows), 4)
+    def acc():   # chain 0 (the greedy start)
+        return round(sum(cur[k] == list(rows[k]["solution"]) for k in range(0, len(rows), K)) / len(base), 4)
+
+    changed = [True] * len(rows)
+
+    def vote():
+        from collections import Counter
+        right = anyr = 0
+        for b in range(len(base)):
+            ks = range(b * K, (b + 1) * K)
+            pool = [tuple(cur[k]) for k in ks if not changed[k]] or [tuple(cur[k]) for k in ks]
+            right += list(Counter(pool).most_common(1)[0][0]) == list(base[b]["solution"])
+            anyr += any(cur[k] == list(base[b]["solution"]) for k in ks)
+        return round(right / len(base), 4), round(anyr / len(base), 4)
 
     summary = {"adapter": a.adapter, "puzzles": len(rows), "first readable": round(sum(x is not None for x in first) / len(rows), 4),
-               "accuracy by step": {"solve": acc()}, "changes by sweep": {}, "unreadable by sweep": {}}
+               "accuracy by step": {"solve": acc()}, "changes by sweep": {}, "unreadable by sweep": {}, "chains": K}
+    if K > 1:
+        summary["voted accuracy / any chain right, by step"] = {"solve": vote()}
     import random
     rng = random.Random(a.seed)
     schedule = [int(x) for x in a.schedule.split(",")] if a.schedule else [1] * a.sweeps
     summary["schedule"] = schedule
     for s, b in enumerate(schedule, 1):
         changes = unread = 0
+        changed = [False] * len(rows)
         nmax = max(len(r["names"]) for r in rows)
         # the blocks of this sweep, per puzzle: b = 1, each person in order; b > 1, N random blocks of b people
         blocks = [[[i] for i in range(len(r["names"]))] if b == 1 else
@@ -98,13 +129,18 @@ def main() -> None:
                     if lab[i] != cur[k][i]:
                         cur[k][i] = lab[i]
                         changes += 1
+                        changed[k] = True
         for k in range(len(rows)):
             traj[k].append(list(cur[k]))
         summary["accuracy by step"][f"sweep {s} (block {b})"] = acc()
+        if K > 1:
+            summary["voted accuracy / any chain right, by step"][f"sweep {s}"] = vote()
         summary["changes by sweep"][f"sweep {s}"] = changes
         summary["unreadable by sweep"][f"sweep {s}"] = unread
-        print(json.dumps({"sweep": s, "block": b, "accuracy": acc(), "changes": changes, "unreadable": unread}), flush=True)
-    summary["mean generated tokens per puzzle"] = round(sum(tokens) / len(tokens), 1)
+        print(json.dumps({"sweep": s, "block": b, "accuracy": acc(), "voted/any": vote() if K > 1 else None,
+                          "changes": changes, "unreadable": unread}), flush=True)
+    summary["mean generated tokens per puzzle"] = round(sum(tokens) / len(base), 1)
+    rows_x, rows = rows, base   # the oracle check runs once per puzzle
     if a.truth_check:   # oracle diagnostic only
         right_people = people = fixed = 0
         per = [[None] * len(r["names"]) for r in rows]
@@ -120,8 +156,8 @@ def main() -> None:
         summary["truth check: reference answer is a fixed point"] = round(fixed / len(rows), 4)
     summary["minutes"] = round((time.time() - t0) / 60, 1)
     with (out / "trajectories.jsonl").open("w") as f:
-        for r, tr in zip(rows, traj):
-            f.write(json.dumps({"id": r["id"], "solution": r["solution"], "steps": tr}) + "\n")
+        for k, (r, tr) in enumerate(zip(rows_x, traj)):
+            f.write(json.dumps({"id": r["id"], "chain": k % K, "solution": r["solution"], "steps": tr}) + "\n")
     (out / "summary.json").write_text(json.dumps(summary, indent=1))
     print(json.dumps(summary, indent=1), flush=True)
     sys.stdout.flush(); sys.stderr.flush()

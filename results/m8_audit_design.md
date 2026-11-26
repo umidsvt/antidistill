@@ -2665,6 +2665,16 @@ is a fixed point of the sweep. Read-out: accuracy after the solve step and after
 student's joint guess for several hidden people is less reliable than its one-person guess. The limit is the
 one-person step itself, which I10 and I11 address.
 
+**Test 3, restarts with a vote (2026-11-25 23:50, GPU 4, no training):** the I6 + RL adapter, 3 chains per puzzle
+(chain 0 from the greedy answer, chains 1–2 from answers sampled at temperature 1.0), 3 one-person sweeps each; final
+answer = the most common chain end among chains the last sweep left unchanged (all chains if none). About 4.7k
+generated tokens per puzzle, matched to U_inst's 4,561. Also reported: how often any chain ends right (oracle).
+Aim: reach more of the 54% ceiling by starting from several answers.
+
+**Identical-copy control done (§32, 2026-11-25 23:41):** I6d SFT 19.8%, then RL 20.7%, against I6c 33.2% / 36.8% and
+B1 14.9% / B5 22.7% (seed 123). Four times the steps on the same examples adds 5 points after SFT; the renamed names
+add 13 more. The gain is mostly from the augmentation; B1's 3 epochs were also somewhat short.
+
 ## 34. Second task, pilot: zebra puzzles and cryptarithms (2026-11-25 22:40; go-ahead from the user for the pilot)
 
 **Why.** The knights puzzles are the only setting with a gap (§24); a second task where reasoning matters would show
