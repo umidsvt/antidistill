@@ -2665,6 +2665,11 @@ is a fixed point of the sweep. Read-out: accuracy after the solve step and after
 student's joint guess for several hidden people is less reliable than its one-person guess. The limit is the
 one-person step itself, which I10 and I11 address.
 
+**I10 result (2026-11-26 00:21):** RL on the views (hidden-person reward, 2 epochs from the I6 SFT adapter): solve 31.5%
+(sampled; greedy 30.5%); refinement 30.5 → 32.7 → 34.4 → 33.9 → 34.1 → 34.3% (one-person sweeps, then pairs and
+triples); oracle: person right 91.1%, reference a fixed point on 51.7% (I6 + RL: 91.6% / 54.0%). RL does not sharpen
+the one-person step.
+
 **Test 3, restarts with a vote (2026-11-25 23:50, GPU 4, no training):** the I6 + RL adapter, 3 chains per puzzle
 (chain 0 from the greedy answer, chains 1–2 from answers sampled at temperature 1.0), 3 one-person sweeps each; final
 answer = the most common chain end among chains the last sweep left unchanged (all chains if none). About 4.7k
@@ -2681,6 +2686,12 @@ original and T − 1 with every name replaced (names from the training puzzles, 
 person's majority label. The I6 + RL adapter; T = 3 with 3 sweeps (about 4.5k tokens per puzzle, matched to U_inst),
 then T = 5 with 2 sweeps; oracle check with the same votes. Smoke test on 30 puzzles (not a result): solve 43%, one
 sweep 57%, reference a fixed point on 63%.
+*Result, T = 3 with 3 sweeps (2026-11-26 00:50):* solve step 31.3 → 32.8% with votes; sweeps 38.0 → 39.5 → **39.6%**;
+4,762 generated tokens per puzzle (U_inst 4,561). Oracle with votes: person right 93.0% (91.6% without), reference a
+fixed point on 59.8% (54.0%). The votes sharpen the one-person step, which raises the ceiling and the result: +8.3
+points over the student's own answer, +3.7 over refinement without votes, at U_inst's token budget.
+Also (GPU 7, free since I10 ended): renaming votes on the solve step alone (no sweeps) for the strongest answers-only
+student, I6c + RL (not trained on views, so it cannot run the sweeps), T = 3 and T = 5.
 
 **Identical-copy control done (§32, 2026-11-25 23:41):** I6d SFT 19.8%, then RL 20.7%, against I6c 33.2% / 36.8% and
 B1 14.9% / B5 22.7% (seed 123). Four times the steps on the same examples adds 5 points after SFT; the renamed names
