@@ -2692,6 +2692,24 @@ fixed point on 59.8% (54.0%). The votes sharpen the one-person step, which raise
 points over the student's own answer, +3.7 over refinement without votes, at U_inst's token budget.
 Also (GPU 7, free since I10 ended): renaming votes on the solve step alone (no sweeps) for the strongest answers-only
 student, I6c + RL (not trained on views, so it cannot run the sweeps), T = 3 and T = 5.
+*Results (2026-11-26 01:20):*
+
+| Student and test-time procedure (s123, greedy) | Solve | Generated tokens / puzzle |
+| --- | --- | --- |
+| I6 + RL, own answer | 31.3 | 67 |
+| I6 + RL, 3 one-person sweeps | 35.9 | 1,588 |
+| I6 + RL, votes over 3 versions, 3 sweeps | 39.6 | 4,762 |
+| I6 + RL, votes over 5 versions, 2 sweeps | **41.5** | 5,404 |
+| **I6c + RL (renamed copies), votes over 3 versions, no sweeps** | **40.4** | **202** |
+| I6c + RL, votes over 5 versions, no sweeps | 39.8 | 336 |
+| U_inst (one sampled solution) | 53.1 | 4,561 |
+
+- Oracle with 5 votes (I6 + RL): person right 93.5%, reference a fixed point on 62.8%.
+- **The renamed-copy student with three renaming votes matches refinement at a twentieth of the tokens.** The sweeps'
+  gain over the I6 student mostly reflects I6's weaker one-shot answer; against the stronger answers-only student they
+  add about 1 point (41.5 vs 40.4) for 25 times the tokens. Refinement as a test-time procedure is not, on this
+  evidence, a method contribution. I11 (dense views with fresh names, combining both students' training) is the
+  remaining test of whether the sweeps add on top of a strong one-shot answer.
 
 **Identical-copy control done (§32, 2026-11-25 23:41):** I6d SFT 19.8%, then RL 20.7%, against I6c 33.2% / 36.8% and
 B1 14.9% / B5 22.7% (seed 123). Four times the steps on the same examples adds 5 points after SFT; the renamed names
