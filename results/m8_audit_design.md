@@ -2670,6 +2670,17 @@ one-person step itself, which I10 and I11 address.
 answer = the most common chain end among chains the last sweep left unchanged (all chains if none). About 4.7k
 generated tokens per puzzle, matched to U_inst's 4,561. Also reported: how often any chain ends right (oracle).
 Aim: reach more of the 54% ceiling by starting from several answers.
+*Result (2026-11-26 00:05):* chain 0 alone 31.3 → 35.5%; **voted 35.7%**; some chain ends right on 40.4% (39.1% of
+the starting answers already include the right one). 4,767 generated tokens per puzzle. Restarts add nothing: the
+chains fall into the same wrong fixed points, and even the oracle choice among them (40.4%) stays far below the 54%
+ceiling. The search is not the limit; the one-person step is.
+
+**Test 4, renaming votes at test time (2026-11-26 00:20, GPU 4, no training):** renamed copies helped training
+(§32), so use them at test time too: ask every question (the solve step and each one-person step) in T versions, the
+original and T − 1 with every name replaced (names from the training puzzles, fixed per puzzle), and take each
+person's majority label. The I6 + RL adapter; T = 3 with 3 sweeps (about 4.5k tokens per puzzle, matched to U_inst),
+then T = 5 with 2 sweeps; oracle check with the same votes. Smoke test on 30 puzzles (not a result): solve 43%, one
+sweep 57%, reference a fixed point on 63%.
 
 **Identical-copy control done (§32, 2026-11-25 23:41):** I6d SFT 19.8%, then RL 20.7%, against I6c 33.2% / 36.8% and
 B1 14.9% / B5 22.7% (seed 123). Four times the steps on the same examples adds 5 points after SFT; the renamed names

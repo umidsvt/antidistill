@@ -43,6 +43,10 @@ def main() -> None:
                     "from the greedy answer, the others from answers sampled at --init-temp; the final answer is the most "
                     "common chain end among the chains left unchanged by the last sweep (all chains if none)")
     ap.add_argument("--init-temp", type=float, default=1.0)
+    ap.add_argument("--tta", type=int, default=1, help="m8 §33 test 4: ask every question (solve and each one-person "
+                    "step) in T versions, the original and T-1 with every name replaced (kk_views.rename, names from the "
+                    "training puzzles, fixed per puzzle); each person's label is the majority over the versions (ties: "
+                    "the original's)")
     ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--max-tokens", type=int, default=512)
     ap.add_argument("--limit", type=int, default=0)
@@ -70,8 +74,47 @@ def main() -> None:
         outs = llm.generate(prompts_of(quizzes), sp, lora_request=lora, use_tqdm=False)
         return [o.outputs[0].text for o in outs], [len(o.outputs[0].token_ids) for o in outs]
 
+    import random as _r
+    from kk_views import rename
+    pool_names = sorted({x for line in open("data/kk/step2_train.jsonl") for x in json.loads(line)["names"]})
+    trng = _r.Random(a.seed + 7)
+    versions = {r["id"]: [r] + [rename(r, trng.sample(pool_names, len(r["names"]))) for _ in range(a.tta - 1)]
+                for r in rows}
+
+    def ask_vote(items):
+        """items: (puzzle row, labels given or None, hidden people or None). Returns (labels per item or None,
+        generated tokens per item): with --tta 1 the plain reply; otherwise the per-person majority over versions."""
+        qs, owners = [], []
+        for n, (r, given, hidden) in enumerate(items):
+            for v in versions[r["id"]]:
+                qs.append(v["quiz"] if hidden is None else mask_quiz(v, given, hidden))
+                owners.append((n, v["names"]))
+        texts_, ntok_ = ask(qs)
+        labs = [[] for _ in items]
+        toks = [0] * len(items)
+        for (n, names), t, nt in zip(owners, texts_, ntok_):
+            labs[n].append(parse_labels(t, names, reasoning=False))
+            toks[n] += nt
+        out_ = []
+        for n, ls in enumerate(labs):
+            ok = [x for x in ls if x is not None]
+            if not ok:
+                out_.append(None); continue
+            m = len(ok[0])
+            vote_ = []
+            for i in range(m):
+                yes = sum(x[i] for x in ok)
+                vote_.append(ok[0][i] if 2 * yes == len(ok) else 2 * yes > len(ok))
+            out_.append(vote_ if ls[0] is not None or len(ok) > 0 else None)
+        return out_, toks
+
     t0 = time.time()
-    texts, ntok = ask([r["quiz"] for r in base])
+    if a.tta > 1:
+        assert K == 1, "--tta with --chains is not implemented"
+        first, ntok = ask_vote([(r, None, None) for r in base])
+        texts = None
+    else:
+        texts, ntok = ask([r["quiz"] for r in base])
     if K > 1:   # the other chains start from sampled answers; rows becomes K copies of each puzzle (chain = k % K)
         sp_s = SamplingParams(n=K - 1, temperature=a.init_temp, top_p=1.0, max_tokens=a.max_tokens, seed=a.seed,
                               stop_token_ids=[eot])
@@ -81,7 +124,8 @@ def main() -> None:
             tx += [t] + [c.text for c in o.outputs]
             nx += [n] + [len(c.token_ids) for c in o.outputs]
         rows, texts, ntok = [r for r in base for _ in range(K)], tx, nx
-    first = [parse_labels(t, r["names"], reasoning=False) for t, r in zip(texts, rows)]
+    if texts is not None:
+        first = [parse_labels(t, r["names"], reasoning=False) for t, r in zip(texts, rows)]
     cur = [list(x) if x is not None else [True] * len(r["names"]) for x, r in zip(first, rows)]
     tokens = list(ntok)
     traj = [[list(c)] for c in cur]
@@ -101,7 +145,7 @@ def main() -> None:
             anyr += any(cur[k] == list(base[b]["solution"]) for k in ks)
         return round(right / len(base), 4), round(anyr / len(base), 4)
 
-    summary = {"adapter": a.adapter, "puzzles": len(rows), "first readable": round(sum(x is not None for x in first) / len(rows), 4),
+    summary = {"adapter": a.adapter, "tta": a.tta, "puzzles": len(rows), "first readable": round(sum(x is not None for x in first) / len(rows), 4),
                "accuracy by step": {"solve": acc()}, "changes by sweep": {}, "unreadable by sweep": {}, "chains": K}
     if K > 1:
         summary["voted accuracy / any chain right, by step"] = {"solve": vote()}
@@ -118,10 +162,13 @@ def main() -> None:
                   [sorted(rng.sample(range(len(r["names"])), b)) for _ in range(len(r["names"]))] for r in rows]
         for j in range(nmax):
             idx = [k for k in range(len(rows)) if j < len(blocks[k])]
-            replies, ntok = ask([mask_quiz(rows[k], cur[k], blocks[k][j]) for k in idx])
-            for k, t, nt in zip(idx, replies, ntok):
+            if a.tta > 1:
+                labs_, ntok = ask_vote([(rows[k], cur[k], blocks[k][j]) for k in idx])
+            else:
+                replies, ntok = ask([mask_quiz(rows[k], cur[k], blocks[k][j]) for k in idx])
+                labs_ = [parse_labels(t, rows[k]["names"], reasoning=False) for k, t in zip(idx, replies)]
+            for k, lab, nt in zip(idx, labs_, ntok):
                 tokens[k] += nt
-                lab = parse_labels(t, rows[k]["names"], reasoning=False)
                 if lab is None:
                     unread += 1
                     continue
@@ -146,9 +193,12 @@ def main() -> None:
         per = [[None] * len(r["names"]) for r in rows]
         for i in range(max(len(r["names"]) for r in rows)):
             idx = [k for k, r in enumerate(rows) if i < len(r["names"])]
-            replies, _ = ask([mask_quiz(rows[k], list(rows[k]["solution"]), [i]) for k in idx])
-            for k, t in zip(idx, replies):
-                lab = parse_labels(t, rows[k]["names"], reasoning=False)
+            if a.tta > 1:
+                labs_, _ = ask_vote([(rows[k], list(rows[k]["solution"]), [i]) for k in idx])
+            else:
+                replies, _ = ask([mask_quiz(rows[k], list(rows[k]["solution"]), [i]) for k in idx])
+                labs_ = [parse_labels(t, rows[k]["names"], reasoning=False) for k, t in zip(idx, replies)]
+            for k, lab in zip(idx, labs_):
                 per[k][i] = lab is not None and lab[i] == rows[k]["solution"][i]
         for p in per:
             people += len(p); right_people += sum(p); fixed += all(p)
