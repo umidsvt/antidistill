@@ -2781,6 +2781,10 @@ on GPU 6 (`scripts/75_rg_pilot2.sh`).
 generated puzzles have a single solution), same models, settings and rule; teacher on GPUs 0,3, student on GPU 4.
 Plan agreed with the user: if 2 × 4 qualifies, the full build uses it; otherwise zebra 4×3. Then the full build
 without a further go-ahead (§36).
+*Round 3 result (2026-11-26 12:17–12:50; `outputs/rg_pilot3/`):* teacher **72%** (71% finished, 5,052 tokens),
+student 0% (53% finished, 2,319 tokens). **Qualifies** (narrowly: 72 of 100, a 95% interval of about 63–81%), so the
+full build uses cryptarithms with two 4-digit addends (§36). Note for U: 29% of the teacher's pilot replies hit the
+8,192-token limit without an answer; as on the knights puzzles, U keeps the teacher's first try whatever it is.
 
 **I11 and I7b (2026-11-26 03:13–05:23).**
 - **I11 (dense views, 19,669 examples, B1's SFT recipe) failed in training:** the loss spiked at step ~400 (0.88, grad
@@ -2826,7 +2830,7 @@ on Qwen against Q-B3; if not, the negative finding holds for both students.
 
 ## 36. Second task, full build (2026-11-26; go-ahead from the user: cryptarithms 2 × 4 if they qualify, else zebra 4×3)
 
-**Task choice.** Cryptarithms with two 4-digit addends if round 3 qualifies them (teacher ≥ 70%, student ≤ 10%);
+**Task choice: cryptarithms 2 × 4** (round 3 qualifies them, 2026-11-26 12:50). Cryptarithms with two 4-digit addends if round 3 qualifies them (teacher ≥ 70%, student ≤ 10%);
 otherwise zebra 4×3 (round 2: teacher 77%, student 1%). Pool check for 2 × 4 (CPU): the first 1,000 single-solution
 puzzles (from 67,044 generated) were all distinct up to renaming, so 3,000 distinct puzzles are available.
 
