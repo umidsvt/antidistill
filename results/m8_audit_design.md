@@ -2777,6 +2777,11 @@ on GPU 6 (`scripts/75_rg_pilot2.sh`).
   addends (larger pool; teacher accuracy not yet measured), or zebra 4×3 (qualifies; the generator gives effectively
   unlimited distinct puzzles; the same family of reasoning as the knights puzzles).
 
+**Round 3 (user's choice, 2026-11-26 12:14): cryptarithms with two 4-digit addends** (100 puzzles, seed 9; 1.7% of
+generated puzzles have a single solution), same models, settings and rule; teacher on GPUs 0,3, student on GPU 4.
+Plan agreed with the user: if 2 × 4 qualifies, the full build uses it; otherwise zebra 4×3. Then the full build
+without a further go-ahead (§36).
+
 **I11 and I7b (2026-11-26 03:13–05:23).**
 - **I11 (dense views, 19,669 examples, B1's SFT recipe) failed in training:** the loss spiked at step ~400 (0.88, grad
   norm 2.2) and the student collapsed to a few fixed answers whatever the puzzle (the four most common answers cover
@@ -2818,6 +2823,27 @@ Both RL students scored at step 100 and at the end (`kk_eval.py`, solve; mean to
 least 5 points at the end (to be confirmed on seeds 124–125 before any claim) and its replies still contain reasoning
 (mean length above 300 tokens). If it works, the Phase 2 ideas (curriculum, repair, one-pass refinement) are tested
 on Qwen against Q-B3; if not, the negative finding holds for both students.
+
+## 36. Second task, full build (2026-11-26; go-ahead from the user: cryptarithms 2 × 4 if they qualify, else zebra 4×3)
+
+**Task choice.** Cryptarithms with two 4-digit addends if round 3 qualifies them (teacher ≥ 70%, student ≤ 10%);
+otherwise zebra 4×3 (round 2: teacher 77%, student 1%). Pool check for 2 × 4 (CPU): the first 1,000 single-solution
+puzzles (from 67,044 generated) were all distinct up to renaming, so 3,000 distinct puzzles are available.
+
+**Build** (launcher `scripts/78_rg_full.sh`, smoke-tested 2026-11-26 12:40):
+1. **Puzzles**: 2,000 training and 1,000 test puzzles of the chosen level, generated together and distinct across both
+   (cryptarithms: no two with the same form up to letter renaming and addend order), puzzle seed 11, shuffled and cut.
+2. **Teacher** (R1-Distill-Qwen-32B, tensor parallel 2, 8,192 tokens, temperature 0.6, top-p 0.95, one try): every
+   training puzzle (GPUs 0,3) and every test puzzle (GPUs 4,5), in parallel.
+3. **Training sets** (`scripts/rg_sets.py`), as the knights puzzles': **U** = the teacher's try on every training
+   puzzle, correct or not; **B1** = the teacher's readable answers alone (no reasoning).
+4. **Students** (seed 123, queue on GPUs 0, 3, 4, 5): I0, U and B1 for Llama-3.2-3B-Instruct and for
+   Qwen2.5-3B-Instruct. SFT with the knights recipe (`kk_sft.py`, LoRA 128, 3 epochs, lr 5e-4) with the question as
+   the whole user message (`--plain-prompt`, the prompt the teacher saw); scored on the 1,000 test puzzles
+   (`rg_pilot.py`, one try, temperature 0.6, 8,192 tokens; exact = every letter or cell right).
+
+**Read-out:** the gap U − I0 for each student (the second task is useful only if it is large, as on the knights
+puzzles), and B1's share of it. RL baselines (B5) and the Phase 2 methods follow once the gap is known.
 
 ## Sources
 

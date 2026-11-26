@@ -102,6 +102,16 @@ def count_solutions(words: list[str], result: str, limit: int = 2) -> int:
     return found
 
 
+def canon(words: list[str], result: str) -> str:
+    """A cryptarithm up to letter renaming and addend order (two puzzles with the same form are the same puzzle)."""
+    best = None
+    for order in (words, words[::-1]):
+        m: dict[str, str] = {}
+        c = "".join(m.setdefault(ch, chr(97 + len(m))) if ch.isalpha() else ch for ch in "+".join(order) + "=" + result)
+        best = c if best is None or c < best else best
+    return best
+
+
 def crypt(words_n: int, seed: int, need: int, prefix: str, length: int = 0) -> tuple[list[dict], dict]:
     """length > 0 (m8 §34, round 2): every addend has exactly `length` digits instead of Reasoning Gym's 3-5; the
     generator and its question text are otherwise Reasoning Gym's own."""
@@ -112,7 +122,7 @@ def crypt(words_n: int, seed: int, need: int, prefix: str, length: int = 0) -> t
         def randint(self, a, b):   # Reasoning Gym draws each addend's length with randint(3, 5)
             return length if (a, b) == (3, 5) else super().randint(a, b)
 
-    rows, tried = [], 0
+    rows, tried, seen, dup = [], 0, set(), 0
     for i in range(len(ds)):
         e = ds[i] if not length else ds._create_single_puzzle(FixedLength(ds.seed + i), i)
         tried += 1
@@ -120,6 +130,11 @@ def crypt(words_n: int, seed: int, need: int, prefix: str, length: int = 0) -> t
         words, result = meta["words_letters"], meta["result_letters"]
         if count_solutions(words, result) != 1:
             continue
+        form = canon(words, result)   # m8 §36: no two puzzles of a file are the same puzzle under renaming
+        if form in seen:
+            dup += 1
+            continue
+        seen.add(form)
         sol = {k: int(v) for k, v in meta["letter_to_digit"].items()}
         assert sum(int("".join(str(sol[c]) for c in w)) for w in words) == int("".join(str(sol[c]) for c in result))
         rows.append({"id": f"{prefix}_{len(rows):04d}", "task": "crypt", "level": f"w{words_n}" + (f"x{length}" if length else ""),
@@ -127,7 +142,8 @@ def crypt(words_n: int, seed: int, need: int, prefix: str, length: int = 0) -> t
                      "words": words, "result": result})
         if len(rows) == need:
             break
-    return rows, {"level": f"w{words_n}" + (f"x{length}" if length else ""), "generated": tried, "unique": len(rows)}
+    return rows, {"level": f"w{words_n}" + (f"x{length}" if length else ""), "generated": tried, "unique": len(rows),
+                  "duplicates skipped": dup}
 
 
 def main() -> int:
@@ -135,10 +151,15 @@ def main() -> int:
     ap.add_argument("--task", choices=["zebra", "crypt"], required=True)
     ap.add_argument("--levels", required=True, help="zebra: KxM,...; crypt: number of addends (2,3,4) or addends x "
                     "digits per addend (2x3,3x3)")
-    ap.add_argument("--per-level", type=int, required=True)
+    ap.add_argument("--per-level", type=int, default=0, help="puzzles per level (set by --split if given)")
     ap.add_argument("--seed", type=int, required=True)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out", required=True, help="with --split: a prefix; <prefix>_<name>.jsonl per split")
+    ap.add_argument("--split", default="", help="m8 §36: e.g. train:2000,test:1000 for one level; the puzzles are "
+                    "generated together (distinct across the splits), shuffled with --seed and cut in order")
     a = ap.parse_args()
+    if a.split:
+        parts = [(x.split(":")[0], int(x.split(":")[1])) for x in a.split.split(",")]
+        a.per_level = sum(n for _, n in parts)
     rows, report = [], []
     for li, lev in enumerate(a.levels.split(",")):
         if a.task == "zebra":
@@ -151,6 +172,23 @@ def main() -> int:
             got, rep = crypt(int(w), a.seed * 1000 + li, a.per_level, f"crypt_w{lev}_s{a.seed}", int(L or 0))
             rows += got
             report.append(rep)
+    if a.task == "zebra":   # distinct puzzles (the generator makes collisions very unlikely; checked anyway)
+        seen, kept = set(), []
+        for r in rows:
+            if r["question"] not in seen:
+                seen.add(r["question"]); kept.append(r)
+        rows = kept
+    if a.split:
+        assert len(rows) == a.per_level, (len(rows), a.per_level)
+        Random(a.seed).shuffle(rows)
+        start = 0
+        for name, n in parts:
+            out = Path(f"{a.out}_{name}.jsonl")
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text("".join(json.dumps(r) + "\n" for r in rows[start:start + n]))
+            start += n
+        print(json.dumps({"out": a.out, "splits": dict(parts), "levels": report}))
+        return 0
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("".join(json.dumps(r) + "\n" for r in rows))

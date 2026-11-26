@@ -40,6 +40,8 @@ def main() -> int:
     ap.add_argument("--grad-accum", type=int, default=24)
     ap.add_argument("--max-steps", type=int, default=-1, help="smoke tests only")
     ap.add_argument("--limit", type=int, default=0, help="first N examples (smoke tests only)")
+    ap.add_argument("--plain-prompt", action="store_true", help="m8 §36: the row's quiz is the whole user message "
+                    "(second task), instead of Xie et al.'s instruction + quiz")
     ap.add_argument("--student", default=STUDENT, help="m8 §24: unsloth/Llama-3.2-3B-Instruct for the instruct student")
     a = ap.parse_args()
     import torch
@@ -55,9 +57,10 @@ def main() -> int:
     if a.limit:
         rows = rows[:a.limit]
     examples, truncated = [], 0
+    turn = (lambda q: {"role": "user", "content": q}) if a.plain_prompt else user_turn
     for r in rows:
-        prompt = tok.apply_chat_template([user_turn(r["quiz"])], add_generation_prompt=True, date_string=DATE)
-        full = tok.apply_chat_template([user_turn(r["quiz"]), {"role": "assistant", "content": r["text"]}],
+        prompt = tok.apply_chat_template([turn(r["quiz"])], add_generation_prompt=True, date_string=DATE)
+        full = tok.apply_chat_template([turn(r["quiz"]), {"role": "assistant", "content": r["text"]}],
                                        add_generation_prompt=False, date_string=DATE)
         assert full[:len(prompt)] == prompt, "chat template: the prompt is not a prefix of the full conversation"
         if len(full) > a.max_length:

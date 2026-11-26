@@ -42,6 +42,7 @@ def main() -> None:
     ap.add_argument("--max-tokens", type=int, default=0, help="0: the model's default above")
     ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--adapter", default="", help="m8 §36: a LoRA adapter on the model (a trained student)")
     a = ap.parse_args()
     from vllm import LLM, SamplingParams
     name, reasoning, max_new = MODELS[a.model]
@@ -52,7 +53,9 @@ def main() -> None:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     llm = LLM(model=name, dtype="bfloat16", tensor_parallel_size=a.tp, max_model_len=max_new + 2048,
-              gpu_memory_utilization=0.90, seed=a.seed)
+              gpu_memory_utilization=0.90, seed=a.seed, enable_lora=bool(a.adapter), max_lora_rank=128)
+    from vllm.lora.request import LoRARequest
+    lora = LoRARequest("student", 1, a.adapter) if a.adapter else None
     tok = llm.get_tokenizer()
     kw = {"date_string": DATE} if "Llama" in name else {}
     prompts = [tok.apply_chat_template([{"role": "user", "content": r["question"]}], tokenize=False,
@@ -60,7 +63,7 @@ def main() -> None:
     stop = [tok.convert_tokens_to_ids(t) for t in ("<|eot_id|>", "<|im_end|>") if t in tok.get_vocab()]
     t0 = time.time()
     outs = llm.generate(prompts, SamplingParams(n=a.k, temperature=a.temperature, top_p=a.top_p, max_tokens=max_new,
-                                                seed=a.seed, stop_token_ids=stop or None))
+                                                seed=a.seed, stop_token_ids=stop or None), lora_request=lora)
     per = defaultdict(lambda: defaultdict(float))
     with (out / "tries.jsonl").open("w") as f:
         for r, o in zip(rows, outs):
@@ -76,7 +79,7 @@ def main() -> None:
             per[r["level"]]["puzzles"] += 1
             per[r["level"]]["solved_once"] += any(x["correct"] for x in recs)
             f.write(json.dumps({"id": r["id"], "level": r["level"], "tries": recs}) + "\n")
-    summary = {"model": name, "reasoning": reasoning, "max_new_tokens": max_new, "k": a.k, "temperature": a.temperature,
+    summary = {"model": name, "adapter": a.adapter or None, "reasoning": reasoning, "max_new_tokens": max_new, "k": a.k, "temperature": a.temperature,
                "minutes": round((time.time() - t0) / 60, 1), "by_level": {}}
     for lev, s in per.items():
         n = s["tries"]
