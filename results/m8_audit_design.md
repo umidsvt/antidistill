@@ -2738,6 +2738,32 @@ within 8,192 tokens) and the untrained student ≤ 10%. Per task, the hardest qu
 cryptarithms are preferred (a different kind of reasoning from the knights puzzles). The next stage (2,000 training
 and 1,000 test puzzles, teacher solutions, U, I0, B1/B5) needs a separate go-ahead.
 
+**Pilot results (2026-11-25 22:47 – 2026-11-26 04:54; `outputs/rg_pilot/`).** Solve rate / replies finished / mean tokens.
+
+| Task, level | Teacher (8,192 tokens) | Teacher, solved among finished | Student (4,096 tokens) |
+| --- | --- | --- | --- |
+| Cryptarithm, 2 addends | 48% / 50% / 6,362 | 96% | 0% / 51% / 2,392 |
+| Cryptarithm, 3 addends | 9% / 10% / 7,889 | 90% | 0% / 48% / 2,539 |
+| Cryptarithm, 4 addends | 3% / 3% / 8,158 | 100% | 0% / 42% / 2,793 |
+| Zebra 4×4 | 55% / 76% / 4,977 | 72% | 0% / 56% / 2,380 |
+| Zebra 5×5 | 11% / 26% / 7,519 | 42% | 0% / 24% / 3,395 |
+| Zebra 6×6 | 1% / 1% / 8,175 | — | 0% / 15% / 3,733 |
+
+**Verdict: no level qualifies** (the teacher is below 70% everywhere). The student is at 0% on every level. The
+teacher's failures are mostly unfinished replies: when it finishes it is right on 90–100% of cryptarithms and 72% of
+4×4 zebras, so the 8,192-token budget, not its skill, limits it. Per the rule, no next stage; the options (easier
+levels within 8,192 tokens, or a larger teacher budget) go to the authors.
+
+**I11 and I7b (2026-11-26 03:13–05:23).**
+- **I11 (dense views, 19,669 examples, B1's SFT recipe) failed in training:** the loss spiked at step ~400 (0.88, grad
+  norm 2.2) and the student collapsed to a few fixed answers whatever the puzzle (the four most common answers cover
+  657 of 1,000 test puzzles): solve 0.6%, refinement 1%, and its RL continuation 0.8–1%. A failed recipe (B1's
+  learning rate 5e-4 held over 2,460 steps), not a result about dense views; not rerun without the authors.
+- **I7b (RL on the one-hidden-person step alone, two epochs):** hidden person right on 64.5% (step 100) and 64.2%
+  (end) of readable replies (I0 59.8%, I2 67.1%); solve 2.2%. With the copying reward removed, two epochs of RL do
+  not teach this student the deduction step. **The reasoning route is closed for Llama-3.2-3B** without
+  demonstrations (§29–31, I7, I7b).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
