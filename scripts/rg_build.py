@@ -102,12 +102,19 @@ def count_solutions(words: list[str], result: str, limit: int = 2) -> int:
     return found
 
 
-def crypt(words_n: int, seed: int, need: int, prefix: str) -> tuple[list[dict], dict]:
+def crypt(words_n: int, seed: int, need: int, prefix: str, length: int = 0) -> tuple[list[dict], dict]:
+    """length > 0 (m8 §34, round 2): every addend has exactly `length` digits instead of Reasoning Gym's 3-5; the
+    generator and its question text are otherwise Reasoning Gym's own."""
     import reasoning_gym as rg
     ds = rg.create_dataset("cryptarithm", min_words=words_n, max_words=words_n, size=200 * need, seed=seed)
+
+    class FixedLength(Random):
+        def randint(self, a, b):   # Reasoning Gym draws each addend's length with randint(3, 5)
+            return length if (a, b) == (3, 5) else super().randint(a, b)
+
     rows, tried = [], 0
     for i in range(len(ds)):
-        e = ds[i]
+        e = ds[i] if not length else ds._create_single_puzzle(FixedLength(ds.seed + i), i)
         tried += 1
         meta = e["metadata"]
         words, result = meta["words_letters"], meta["result_letters"]
@@ -115,18 +122,19 @@ def crypt(words_n: int, seed: int, need: int, prefix: str) -> tuple[list[dict], 
             continue
         sol = {k: int(v) for k, v in meta["letter_to_digit"].items()}
         assert sum(int("".join(str(sol[c]) for c in w)) for w in words) == int("".join(str(sol[c]) for c in result))
-        rows.append({"id": f"{prefix}_{len(rows):04d}", "task": "crypt", "level": f"w{words_n}",
+        rows.append({"id": f"{prefix}_{len(rows):04d}", "task": "crypt", "level": f"w{words_n}" + (f"x{length}" if length else ""),
                      "question": e["question"], "answer": e["answer"], "letters": sorted(sol), "solution": sol,
                      "words": words, "result": result})
         if len(rows) == need:
             break
-    return rows, {"level": f"w{words_n}", "generated": tried, "unique": len(rows)}
+    return rows, {"level": f"w{words_n}" + (f"x{length}" if length else ""), "generated": tried, "unique": len(rows)}
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--task", choices=["zebra", "crypt"], required=True)
-    ap.add_argument("--levels", required=True, help="zebra: KxM,...; crypt: number of addends, e.g. 2,3,4")
+    ap.add_argument("--levels", required=True, help="zebra: KxM,...; crypt: number of addends (2,3,4) or addends x "
+                    "digits per addend (2x3,3x3)")
     ap.add_argument("--per-level", type=int, required=True)
     ap.add_argument("--seed", type=int, required=True)
     ap.add_argument("--out", required=True)
@@ -139,7 +147,8 @@ def main() -> int:
                 rows.append(zebra(Random(a.seed * 100003 + li * 10007 + i), k, m, f"zebra{lev}_s{a.seed}_{i:04d}"))
             report.append({"level": lev, "puzzles": a.per_level})
         else:
-            got, rep = crypt(int(lev), a.seed * 1000 + li, a.per_level, f"crypt_w{lev}_s{a.seed}")
+            w, _, L = lev.partition("x")
+            got, rep = crypt(int(w), a.seed * 1000 + li, a.per_level, f"crypt_w{lev}_s{a.seed}", int(L or 0))
             rows += got
             report.append(rep)
     out = Path(a.out)

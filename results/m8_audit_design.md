@@ -2754,6 +2754,12 @@ teacher's failures are mostly unfinished replies: when it finishes it is right o
 4×4 zebras, so the 8,192-token budget, not its skill, limits it. Per the rule, no next stage; the options (easier
 levels within 8,192 tokens, or a larger teacher budget) go to the authors.
 
+**Round 2 (user's choice, 2026-11-26 11:30): easier levels at the same 8,192 tokens.** Zebra 3×4 and 4×3 (100 each)
+and cryptarithms with 3-digit addends: 2 addends (100) and 3 addends (37; unique solutions are rare at this size, 37
+of 20,000 generated, so this level could not be scaled to a full dataset anyway). Puzzle seed 8; same models,
+settings and selection rule as round 1. Teacher on GPUs 0,3 (cryptarithms) and 4,5 (zebra) in parallel, the student
+on GPU 6 (`scripts/75_rg_pilot2.sh`).
+
 **I11 and I7b (2026-11-26 03:13–05:23).**
 - **I11 (dense views, 19,669 examples, B1's SFT recipe) failed in training:** the loss spiked at step ~400 (0.88, grad
   norm 2.2) and the student collapsed to a few fixed answers whatever the puzzle (the four most common answers cover
