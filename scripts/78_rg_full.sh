@@ -47,9 +47,9 @@ fi
 echo "[$(ts)] puzzles: $(wc -l < ${D}_train.jsonl) train, $(wc -l < ${D}_test.jsonl) test"
 
 # 2. teacher, training and test puzzles in parallel
-attempt $T_TRAIN $O/T_train/summary.json $O/T_train.log $PY scripts/rg_pilot.py --model T --tp 2 \
+attempt $T_TRAIN $O/T_train/summary.json $O/T_train.log $PY scripts/rg_pilot.py --model T --tp 2 --no-custom-allreduce \
     --puzzles ${D}_train.jsonl --out $O/T_train &
-attempt $T_TEST $O/T_test/summary.json $O/T_test.log $PY scripts/rg_pilot.py --model T --tp 2 \
+attempt $T_TEST $O/T_test/summary.json $O/T_test.log $PY scripts/rg_pilot.py --model T --tp 2 --no-custom-allreduce \
     --puzzles ${D}_test.jsonl --out $O/T_test &
 wait
 [[ -f $O/T_train/summary.json ]] || { echo "[$(ts)] teacher on the training puzzles failed"; exit 1; }

@@ -2846,6 +2846,11 @@ puzzles (from 67,044 generated) were all distinct up to renaming, so 3,000 disti
    the whole user message (`--plain-prompt`, the prompt the teacher saw); scored on the 1,000 test puzzles
    (`rg_pilot.py`, one try, temperature 0.6, 8,192 tokens; exact = every letter or cell right).
 
+**Incident (2026-11-26 12:57):** the teacher's vLLM engines failed to start on both GPU pairs (custom all-reduce
+kernel: CUDA 'invalid argument', twice each); the same pairs had worked in all three pilots and worked again at 16:52.
+Restarted at 16:55 with vLLM's NCCL all-reduce (`--no-custom-allreduce`; sampling settings unchanged), GPU 6 added to
+the student queue. About 4 hours lost: the watcher waited for the puzzle step only.
+
 **Read-out:** the gap U − I0 for each student (the second task is useful only if it is large, as on the knights
 puzzles), and B1's share of it. RL baselines (B5) and the Phase 2 methods follow once the gap is known.
 

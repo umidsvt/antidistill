@@ -43,6 +43,8 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=123)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--adapter", default="", help="m8 §36: a LoRA adapter on the model (a trained student)")
+    ap.add_argument("--no-custom-allreduce", action="store_true", help="m8 §36: vLLM's NCCL all-reduce instead of its "
+                    "custom kernel (whose initialization failed once with 'invalid argument' on 2026-11-26 12:57)")
     a = ap.parse_args()
     from vllm import LLM, SamplingParams
     name, reasoning, max_new = MODELS[a.model]
@@ -53,7 +55,8 @@ def main() -> None:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     llm = LLM(model=name, dtype="bfloat16", tensor_parallel_size=a.tp, max_model_len=max_new + 2048,
-              gpu_memory_utilization=0.90, seed=a.seed, enable_lora=bool(a.adapter), max_lora_rank=128)
+              gpu_memory_utilization=0.90, seed=a.seed, enable_lora=bool(a.adapter), max_lora_rank=128,
+              disable_custom_all_reduce=a.no_custom_allreduce)
     from vllm.lora.request import LoRARequest
     lora = LoRARequest("student", 1, a.adapter) if a.adapter else None
     tok = llm.get_tokenizer()
