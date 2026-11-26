@@ -2828,6 +2828,11 @@ least 5 points at the end (to be confirmed on seeds 124–125 before any claim) 
 (mean length above 300 tokens). If it works, the Phase 2 ideas (curriculum, repair, one-pass refinement) are tested
 on Qwen against Q-B3; if not, the negative finding holds for both students.
 
+**Q-U result (2026-11-26 13:51):** Qwen trained on the teacher's solutions solves **62.3%** of the test puzzles (4,053
+tokens per reply), against 1.6% untrained: a gap of 60.7 points (Llama: U_inst 53.1% s123, gap 51.8). Training
+progress at 16:50 (exact-agreement reward, mean of the last 40 steps): Q-B3 3.5% at step 116 of 214, Q-B3c 0.3% at
+step 121.
+
 ## 36. Second task, full build (2026-11-26; go-ahead from the user: cryptarithms 2 × 4 if they qualify, else zebra 4×3)
 
 **Task choice: cryptarithms 2 × 4** (round 3 qualifies them, 2026-11-26 12:50). Cryptarithms with two 4-digit addends if round 3 qualifies them (teacher ≥ 70%, student ≤ 10%);
