@@ -2986,6 +2986,19 @@ over the epoch: Qwen 0.14 → 0.18, Llama 0.06 → 0.07. RL from the teacher's a
 above chance and Llama's not at all; the curriculum's later stages are not run. As on the knights puzzles (I7b), the
 single step is not learned from answers.
 
+## 39. Rerun of the unstable recipes at learning rate 2e-4 (2026-11-28 12:00; go-ahead from the user)
+
+**Why.** B1's SFT recipe (lr 5e-4) diverged on three longer runs (I11, I6c s125, Qwen B1r; §33, §37), so the
+renamed-copy numbers lack a third seed and Qwen's relabeled-copy attacker has no valid result.
+
+**Runs** (launcher `scripts/81_rerun_lr.sh`; one GPU per lane, never one another person is using):
+1. **I6c at lr 2e-4, seeds 123, 124, 125** (`I6c2_rename_s*`, then `I6c2_renamerl_s*`): the same set
+   (`sft_rename3`), B1's recipe except the learning rate, then B5's RL unchanged; scored with `kk_eval.py` (sampled).
+   **Votes:** §37's rule is re-applied to the new recipe: T ∈ {1, 3, 5} on the validation puzzles for I6c2 + RL s123,
+   the best T (ties: smaller) then on the test puzzles for all three seeds. Also B5 s125 with that T (its vote test
+   was removed in §37), so B5 has three voted seeds.
+2. **Qwen B1r at lr 2e-4** (`B1r2_Q_s123`), then B5r (RL from it, B5's settings), on cryptarithms.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
