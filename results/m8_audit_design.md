@@ -2998,7 +2998,7 @@ renamed-copy numbers lack a third seed and Qwen's relabeled-copy attacker has no
    the best T (ties: smaller) then on the test puzzles for all three seeds. Also B5 s125 with that T (its vote test
    was removed in §37), so B5 has three voted seeds.
 2. **Qwen B1r at lr 2e-4** (`B1r2_Q_s123`), then B5r (RL from it, B5's settings), on cryptarithms.
-3. **Added 2026-11-28 12:30 (GPUs 6, 7): Qwen's answers-only students on the knights puzzles**, so that both tasks
+3. **Added 2026-11-28 11:55 (GPUs 6, 7): Qwen's answers-only students on the knights puzzles**, so that both tasks
    have the same attackers for both students (seed 123): **Q-B1** (B1's recipe, lr 5e-4, 216 steps, stable for B1),
    then **Q-B5** (B5's RL from it); **Q-I6c2** (renamed copies at lr 2e-4), then RL, then votes with the T chosen by
    the rule in item 1. `kk_refine.py` uses Qwen's tokenizer and end token for a Qwen student.
