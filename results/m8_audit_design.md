@@ -2910,6 +2910,25 @@ puzzles), and B1's share of it. RL baselines (B5) and the Phase 2 methods follow
    smaller T); that T is then applied on the test puzzles to I6c + RL and B5 for seeds 123–125. (Seed 123's test
    numbers were seen during development, §33; seeds 124–125 were not.)
 
+## 38. Novel-method development on GPUs 2 and 7 (2026-11-27 20:00; the user assigned GPUs 2 and 7 to this)
+
+**I12, answer-pruned stepwise search (smoke test only, not pursued).** `scripts/kk_aps.py`: the student solves one
+person per step ("Therefore, NAME is a ..."); of K = 8 candidate steps, one is kept if its claim agrees with the
+teacher's answer and is the student's own majority view for that person; the answer is never shown. On 40 training
+puzzles (Llama, untrained): 686 of 1,000 candidates make a claim, but claims scatter over people (1–3 candidates per
+person) and only 39 steps pass; **no complete trace**. The dump also shows the reasoning behind right claims is mostly
+invalid (non sequiturs), so pruning by claims would select right labels, not valid reasoning (the problem of §26's
+hinted rationales). Not pursued on the knights puzzles.
+
+**I13, answer-infill curriculum on cryptarithms: feasibility probe (no training).** On the knights puzzles the infill
+curriculum failed because the one deduction step was beyond the student (§30) and a guessed label is right half the
+time. On cryptarithms the step is arithmetic (one unknown letter from a column sum) and a guessed digit is right one
+time in ten, so the reward demands the deduction. Probe: the first 300 test puzzles with the reference digits of all
+but m letters given (`scripts/rg_task_sets.py`, m = 1, 2, 3), the untrained students (Llama GPU 7, Qwen GPU 2), 2 tries
+at temperature 0.6, 4,096 tokens; scored per hidden letter (`scripts/rg_hidden_acc.py`). If the hidden letters are
+found well above chance at m = 1–2, an RL curriculum over m (hidden-letter reward, teacher's digits given) toward the
+full puzzle is the next test.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
