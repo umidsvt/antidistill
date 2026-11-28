@@ -2950,6 +2950,14 @@ one epoch; adapters every 25 steps. Scored on the probe sets (m = 1, 2, 3) and o
 **Gate:** the later curriculum stages run only if a student finds the one hidden letter in at least 50% of tries
 (chance about 25%).
 
+**§37 incident (2026-11-27 21:31–22:23): I6c seed 125 diverged in SFT.** At step ~185 of 858 the loss jumped from 0.06
+to 9.0 (grad norm 11.8) and settled at 0.53 instead of about 0.04; the student writes names that are not in the puzzle
+(0 of 1,000 test answers readable, solve 0.0%). Seed 124 trained normally (solve 36.8% after SFT; seed 123: 33.2%).
+The same recipe (B1's lr 5e-4, now over 858 steps) also diverged in I11 (2,460 steps, §33): **the recipe is unstable
+for longer runs; a failed recipe, not a result.** The RL stage started from the broken adapter was stopped (with its
+queue worker; the worker on GPU 1 was replaced at 22:23) and seed 125's vote test removed from the queue. A rerun of
+the renamed-copy recipe at a lower learning rate on all three seeds is for the authors to decide.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
