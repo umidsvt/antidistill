@@ -59,10 +59,11 @@ def main() -> None:
     base, K = rows, a.chains
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    llm = LLM(model=a.student, tokenizer=STUDENT_TOKENIZER, dtype="bfloat16", max_model_len=4096,
+    llm = LLM(model=a.student, tokenizer=a.student if "Qwen" in a.student else STUDENT_TOKENIZER, dtype="bfloat16",
+              max_model_len=4096,
               gpu_memory_utilization=0.85, seed=a.seed, enable_lora=True, max_lora_rank=128, enable_prefix_caching=True)
     tok = llm.get_tokenizer()
-    eot = tok.convert_tokens_to_ids("<|eot_id|>")
+    eot = tok.convert_tokens_to_ids("<|im_end|>" if "Qwen" in a.student else "<|eot_id|>")  # m8 §39: Qwen student
     sp = SamplingParams(n=1, temperature=0.0, max_tokens=a.max_tokens, seed=a.seed, stop_token_ids=[eot])
     lora = LoRARequest("student", 1, a.adapter)
 
