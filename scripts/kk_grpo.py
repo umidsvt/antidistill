@@ -95,7 +95,7 @@ def main() -> int:
     T = load_tries(Path(a.teacher_gen), "T") if not a.rg_teacher else {}
     data = []
     if a.rg_teacher:   # second task (m8 §37): puzzles with a readable teacher answer, as rg_sets.py's B1
-        assert a.reward == "exact" and not a.shuffle_targets
+        assert a.reward in ("exact", "hidden") and not a.shuffle_targets
         tries = {t["id"]: t["tries"][0] for t in map(json.loads, open(a.rg_teacher))}
         for r in pool:
             ans = tries[r["id"]]["parsed"]
@@ -163,11 +163,21 @@ def main() -> int:
                 out_.append(1.0 if rg_correct(rg_parse(c, row), {**row, "solution": t}) else 0.0)
             return out_
 
+        def rg_hidden(prompts, completions, row_json, teacher_json, **_):   # m8 §38: only the hidden letters count
+            out_ = []
+            for c, rj, tj in zip(completions, row_json, teacher_json):
+                row, t = json.loads(rj), json.loads(tj)
+                p_ = rg_parse(c, row)
+                hid = row.get("hidden", row.get("letters"))
+                out_.append(1.0 if p_ is not None and all(p_.get(k) == int(t[k]) for k in hid) else 0.0)
+            return out_
+
         def rg_reference(prompts, completions, row_json, **_):   # logged only (weight 0)
             return [1.0 if rg_correct(rg_parse(c, json.loads(rj)), json.loads(rj)) else 0.0
                     for c, rj in zip(completions, row_json)]
 
-        funcs, weights = [rg_exact, rg_reference], [1.0, 0.0]
+        funcs = [rg_exact, rg_hidden, rg_reference]
+        weights = [1.0, 0.0, 0.0] if a.reward == "exact" else [0.0, 1.0, 0.0]
 
     model = AutoModelForCausalLM.from_pretrained(a.student, torch_dtype=torch.bfloat16,
                                                  attn_implementation="flash_attention_2")

@@ -2929,6 +2929,27 @@ at temperature 0.6, 4,096 tokens; scored per hidden letter (`scripts/rg_hidden_a
 found well above chance at m = 1–2, an RL curriculum over m (hidden-letter reward, teacher's digits given) toward the
 full puzzle is the next test.
 
+*Probe results (2026-11-27 20:05–20:55; `outputs/rg/probe/`):* hidden letters all right (readable replies in brackets;
+given letters copied right):
+
+| Hidden letters | Llama | Qwen | Chance (unused digits) |
+| --- | --- | --- | --- |
+| 1 | 9.0% (readable 74%, given right 32%) | 24.5% (94%, 86%) | about 25% |
+| 2 | 1.8% | 4.7% | about 6% |
+| 3 | 0.0% | 1.3% | about 1% |
+
+**The premise fails for the untrained students:** with the other digits given, a hidden letter can only take one of
+the 3–5 unused digits (chance about 25% at one hidden letter, not the one in ten assumed above), and Qwen is at chance,
+Llama below it (it even miscopies the given digits). They guess instead of computing the column sum.
+
+**Stage-1 test (2026-11-27 21:05, GPUs 2 and 7):** can RL teach the single step here, unlike on the knights puzzles
+(I7b: 60 → 64%)? GRPO with the hidden-letter reward (`kk_grpo.py --rg-teacher --reward hidden`; the given digits and the
+target from the teacher's answer) on `crypt_train_m12` (1,510 puzzles with a readable teacher answer, 1 or 2 letters
+hidden), from the untrained Qwen (GPU 2) and Llama (GPU 7); lr 1e-5, temperature 0.8, 16 × 8 per step, 3,072 tokens,
+one epoch; adapters every 25 steps. Scored on the probe sets (m = 1, 2, 3) and on 300 test puzzles (solve).
+**Gate:** the later curriculum stages run only if a student finds the one hidden letter in at least 50% of tries
+(chance about 25%).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
