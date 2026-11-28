@@ -2833,6 +2833,20 @@ tokens per reply), against 1.6% untrained: a gap of 60.7 points (Llama: U_inst 5
 progress at 16:50 (exact-agreement reward, mean of the last 40 steps): Q-B3 3.5% at step 116 of 214, Q-B3c 0.3% at
 step 121.
 
+**Q-B3 and Q-B3c results (2026-11-26 21:40–22:25; seed 123; solve rate, mean tokens):**
+
+| Student | Step 100 | End (step 214) |
+| --- | --- | --- |
+| Q0, untrained | 1.6% (1,277) | — |
+| Q-B3, RL with the teacher's answers | 3.7% (2,127) | **7.2%** (668) |
+| Q-B3c, RL with shuffled targets (control) | 3.0% (1,472) | 4.0% (1,741) |
+| Q-U, trained on the teacher's solutions | — | 62.3% (4,053) |
+
+**Verdict: the rule is not met** (Q-B3 − Q-B3c = 3.2 points < 5). RL with targets unrelated to the puzzle already
+lifts Qwen from 1.6% to 4.0% (the spurious-reward effect the control was there for); the teacher's answers add 3.2
+points more, and Q-B3 still reasons (668 tokens). Answers-only RL does not teach Qwen to solve the puzzles either:
+7.2% against Q-U's 62.3%. The bootstrap-threshold story is not supported; the negative finding holds for both students.
+
 ## 36. Second task, full build (2026-11-26; go-ahead from the user: cryptarithms 2 × 4 if they qualify, else zebra 4×3)
 
 **Task choice: cryptarithms 2 × 4** (round 3 qualifies them, 2026-11-26 12:50). Cryptarithms with two 4-digit addends if round 3 qualifies them (teacher ≥ 70%, student ≤ 10%);
@@ -2855,6 +2869,22 @@ puzzles (from 67,044 generated) were all distinct up to renaming, so 3,000 disti
 kernel: CUDA 'invalid argument', twice each); the same pairs had worked in all three pilots and worked again at 16:52.
 Restarted at 16:55 with vLLM's NCCL all-reduce (`--no-custom-allreduce`; sampling settings unchanged), GPU 6 added to
 the student queue. About 4 hours lost: the watcher waited for the puzzle step only.
+
+**Results (2026-11-27 04:00–11:22; seed 123; `outputs/rg/crypt/`).** Teacher: 74.6% of training puzzles (75% of
+replies finished, 5,067 tokens), **77.4% of test puzzles**. Training sets: U 2,000 (1,492 right); B1 1,510 readable
+answers (1,492 right), 490 puzzles without one. Test, exact (every letter right) / share of letters right / tokens:
+
+| Student | Llama-3.2-3B-Instruct | Qwen2.5-3B-Instruct |
+| --- | --- | --- |
+| I0, untrained | 0.0% / 4.1% / 4,218 | 0.0% / 8.6% / 1,344 |
+| B1, the teacher's answers alone | 0.1% / 27.9% / 18 | 0.2% / 29.5% / 18 |
+| U, the teacher's solutions | **40.5%** / 56.1% / 6,462 | **51.4%** / 64.0% / 5,857 |
+
+- **A large gap on a second task**, of a different kind of reasoning: 40.5 points for Llama, 51.4 for Qwen.
+- **The teacher's answers alone teach almost nothing here**: B1 solves 0.1–0.2% (it learns the answer format and
+  letter-level statistics, 28–30% of letters right, but not the arithmetic). On the knights puzzles the same recipe
+  recovered 30% of the gap (B1) and up to about 75% with renamed copies, RL and votes (§31–33). How much a teacher's
+  answers carry depends on whether the task has a shortcut that can be learned from answers.
 
 **Read-out:** the gap U − I0 for each student (the second task is useful only if it is large, as on the knights
 puzzles), and B1's share of it. RL baselines (B5) and the Phase 2 methods follow once the gap is known.
