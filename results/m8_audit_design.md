@@ -2889,7 +2889,7 @@ answers (1,492 right), 490 puzzles without one. Test, exact (every letter right)
 **Read-out:** the gap U − I0 for each student (the second task is useful only if it is large, as on the knights
 puzzles), and B1's share of it. RL baselines (B5) and the Phase 2 methods follow once the gap is known.
 
-## 37. Seeds for the main numbers, and the strongest answers-only attacker on cryptarithms (2026-11-27 20:10; go-ahead from the user)
+## 37. Seeds for the main numbers, and the strongest answers-only attacker on cryptarithms (2026-11-27 19:50; go-ahead from the user)
 
 **Runs** (launcher `scripts/79_seeds_attackers.sh`, a queue on GPUs 0, 1, 3, 4, 5, 6; GPU 7 left free, GPU 2 kept):
 1. **Cryptarithms, seeds 124 and 125** (§36's recipe, same training sets, training and scoring seed changed): I0, U and
