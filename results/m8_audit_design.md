@@ -3003,6 +3003,11 @@ renamed-copy numbers lack a third seed and Qwen's relabeled-copy attacker has no
    then **Q-B5** (B5's RL from it); **Q-I6c2** (renamed copies at lr 2e-4), then RL, then votes with the T chosen by
    the rule in item 1. `kk_refine.py` uses Qwen's tokenizer and end token for a Qwen student.
 
+**Partial results (2026-11-28 12:31–13:44).** I6c2 SFT (lr 2e-4): seed 123 36.8%, 124 35.8%, 125 34.6% (mean 35.7%);
+**all three stable** (largest loss after warm-up 0.07; seed 125 had spiked to 9.0 at lr 5e-4). Qwen on the knights
+puzzles: Q-B1 14.0%, Q-B5 17.2% (untrained 1.6%, Q-U 62.3%). Qwen B1r2 on cryptarithms: 0.3% solved, 33.6% of
+letters right, 99.8% readable (stable; still essentially zero).
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
