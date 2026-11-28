@@ -56,6 +56,10 @@ def main() -> int:
     ap.add_argument("--vllm-mem", type=float, default=0.35)
     ap.add_argument("--save-every", type=int, default=50)
     ap.add_argument("--limit", type=int, default=0, help="first N prompts (smoke tests only)")
+    ap.add_argument("--rg-teacher", default="", help="m8 §37, second task: the teacher's tries on the Reasoning Gym "
+                    "training puzzles (scripts/rg_pilot.py tries.jsonl); --pool is then the rg_build.py training file, "
+                    "the question is the whole user message, and the reward (exact) compares the reply's answer "
+                    "(scripts/rg_common.py) with the teacher's")
     ap.add_argument("--shuffle-targets", action="store_true", help="m8 §35 control: each prompt's target is the "
                     "teacher's answer to a different training puzzle with the same number of people (a fixed random "
                     "derangement, seed 0), so the reward carries no information about the puzzle")
@@ -88,8 +92,19 @@ def main() -> int:
     if tok.pad_token is None:
         tok.pad_token = "<|finetune_right_pad_id|>"
     pool = [json.loads(line) for line in open(a.pool)]
-    T = load_tries(Path(a.teacher_gen), "T")
+    T = load_tries(Path(a.teacher_gen), "T") if not a.rg_teacher else {}
     data = []
+    if a.rg_teacher:   # second task (m8 §37): puzzles with a readable teacher answer, as rg_sets.py's B1
+        assert a.reward == "exact" and not a.shuffle_targets
+        tries = {t["id"]: t["tries"][0] for t in map(json.loads, open(a.rg_teacher))}
+        for r in pool:
+            ans = tries[r["id"]]["parsed"]
+            if ans is None:
+                continue
+            prompt = tok.apply_chat_template([{"role": "user", "content": r["question"]}], tokenize=False,
+                                             add_generation_prompt=True, date_string=DATE)
+            data.append({"prompt": prompt, "row_json": json.dumps(r), "teacher_json": json.dumps(ans)})
+        pool = []
     for r in pool:
         labels = T[r["id"]][0]["labels"]
         if labels is None:
@@ -138,6 +153,21 @@ def main() -> int:
 
     funcs = [reward_exact, reward_partial, reward_hidden, agrees_with_reference]
     weights = {"exact": [1.0, 0.0, 0.0, 0.0], "partial": [0.0, 1.0, 0.0, 0.0], "hidden": [0.0, 0.0, 1.0, 0.0]}[a.reward]
+    if a.rg_teacher:
+        from rg_common import correct as rg_correct, parse as rg_parse
+
+        def rg_exact(prompts, completions, row_json, teacher_json, **_):
+            out_ = []
+            for c, rj, tj in zip(completions, row_json, teacher_json):
+                row, t = json.loads(rj), json.loads(tj)
+                out_.append(1.0 if rg_correct(rg_parse(c, row), {**row, "solution": t}) else 0.0)
+            return out_
+
+        def rg_reference(prompts, completions, row_json, **_):   # logged only (weight 0)
+            return [1.0 if rg_correct(rg_parse(c, json.loads(rj)), json.loads(rj)) else 0.0
+                    for c, rj in zip(completions, row_json)]
+
+        funcs, weights = [rg_exact, rg_reference], [1.0, 0.0]
 
     model = AutoModelForCausalLM.from_pretrained(a.student, torch_dtype=torch.bfloat16,
                                                  attn_implementation="flash_attention_2")

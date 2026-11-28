@@ -2889,6 +2889,27 @@ answers (1,492 right), 490 puzzles without one. Test, exact (every letter right)
 **Read-out:** the gap U − I0 for each student (the second task is useful only if it is large, as on the knights
 puzzles), and B1's share of it. RL baselines (B5) and the Phase 2 methods follow once the gap is known.
 
+## 37. Seeds for the main numbers, and the strongest answers-only attacker on cryptarithms (2026-11-27 20:10; go-ahead from the user)
+
+**Runs** (launcher `scripts/79_seeds_attackers.sh`, a queue on GPUs 0, 1, 3, 4, 5, 6; GPU 7 left free, GPU 2 kept):
+1. **Cryptarithms, seeds 124 and 125** (§36's recipe, same training sets, training and scoring seed changed): I0, U and
+   B1 for both students.
+2. **Cryptarithms, the strongest answers-only attacker** (seed 123, both students):
+   - **B5**: GRPO from the B1 adapter with the exact-agreement reward against the teacher's answers (`kk_grpo.py
+     --rg-teacher`, the knights B5 settings: lr 5e-6, temperature 1.0, 16 × 8 per step, one epoch);
+   - **B1r → B5r**: SFT on the plain puzzle plus 3 relabeled copies per puzzle (`scripts/rg_views.py`: every letter
+     of the puzzle replaced one-to-one by another letter, the teacher's answer relabeled the same way; 6,040
+     examples, the counterpart of the knights renamed copies), then B5's RL from it.
+   Scored on the 1,000 test puzzles as §36.
+3. **Knights puzzles, the best answers-only recipe on seeds 124 and 125**: I6c (plain + 3 renamed copies, B1's SFT
+   recipe) then B5's RL, as §31 for seed 123.
+4. **Knights puzzles, the number of renaming votes fixed on a validation set**: 500 fresh puzzles
+   (`data/kk/step2_val.jsonl`, `kk_make.py` seed 20261420; no overlap with the training or test puzzles). Votes over T
+   ∈ {1, 3, 5} versions of the solve step (`kk_refine.py --sweeps 0`, greedy) for I6c + RL and B5, seed 123, on the
+   validation puzzles. **Rule:** T is the value with the highest validation accuracy for I6c + RL s123 (ties: the
+   smaller T); that T is then applied on the test puzzles to I6c + RL and B5 for seeds 123–125. (Seed 123's test
+   numbers were seen during development, §33; seeds 124–125 were not.)
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
