@@ -2958,6 +2958,34 @@ for longer runs; a failed recipe, not a result.** The RL stage started from the 
 queue worker; the worker on GPU 1 was replaced at 22:23) and seed 125's vote test removed from the queue. A rerun of
 the renamed-copy recipe at a lower learning rate on all three seeds is for the authors to decide.
 
+**§37 results (2026-11-27 22:22 – 2026-11-28 02:19).**
+
+*Cryptarithms, 3 seeds* (exact solve on 1,000 test puzzles, mean with 95% interval, t with 2 df):
+
+| Student | Llama-3.2-3B-Instruct (s123 / s124 / s125) | Mean | Qwen2.5-3B-Instruct (s123 / s124 / s125) | Mean |
+| --- | --- | --- | --- | --- |
+| I0, untrained | 0.0 / 0.0 / 0.0 | 0.0 | 0.0 / 0.0 / 0.0 | 0.0 |
+| B1, the teacher's answers | 0.1 / 0.2 / 0.0 | 0.1 (−0.1 to 0.3) | 0.2 / 0.2 / 0.0 | 0.1 (−0.2 to 0.4) |
+| U, the teacher's solutions | 40.5 / 45.5 / 39.9 | **42.0** (34.3 to 49.6) | 51.4 / 53.1 / 51.8 | **52.1** (49.9 to 54.3) |
+
+*Cryptarithms, the strongest answers-only attackers (seed 123):* B5 (RL from B1) Llama 0.1%, Qwen 0.2%; B1r (relabeled
+copies) Llama 0.4%, then B5r 0.4%. Qwen's B1r **diverged in SFT** (loss spikes to 6.3, grad norm up to 45; 15.7% of
+answers readable; the same instability as I11 and I6c s125), so Qwen's B1r and B5r (0.0%) are a failed recipe, not
+results. **Every answers-only attacker stays below 0.5% against U's 42–52%**: the teacher's answers carry essentially
+none of the cryptarithm gap.
+
+*Knights puzzles, the best answers-only recipe:* I6c + RL seed 124: 39.9% (sampled; seed 123: 36.8%). **Votes fixed on
+the validation puzzles:** I6c + RL s123 with T = 1 / 3 / 5 versions: 38.2 / 38.2 / **41.8%** (B5 s123: 19.8 / 22.6 /
+21.6%), so **T = 5** by the rule. Test with T = 5: I6c + RL 39.9% (s123), 42.4% (s124); B5 23.2% (s123), 33.8% (s124).
+Seed 125 is missing (its SFT diverged, see the incident above), so no 3-seed claim yet for this recipe.
+
+**§38 I13 stage-1 result (2026-11-28 00:28–06:37): the gate fails for both students.** One hidden letter found:
+Qwen 24.5% → **35.3%**, Llama 9.0% → **10.2%** (gate: 50%; chance about 25%); two hidden letters: Qwen 4.7 → 8.7%,
+Llama 1.8 → 1.5%; three: Qwen 1.3 → 1.8%, Llama 0.0 → 0.2%; full puzzles (300 test): 0.0% for both. Training reward
+over the epoch: Qwen 0.14 → 0.18, Llama 0.06 → 0.07. RL from the teacher's answers moves Qwen's single step a little
+above chance and Llama's not at all; the curriculum's later stages are not run. As on the knights puzzles (I7b), the
+single step is not learned from answers.
+
 ## Sources
 
 - Kim et al., arXiv 2603.15500 (local PDF, Tables 5 and 7, Appendix E).
